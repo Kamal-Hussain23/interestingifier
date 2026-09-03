@@ -1,8 +1,9 @@
 """Interestingifier Flask application.
 
 Serves the frontend and the three Gemini pipeline endpoints. The endpoints have
-real, structured request/response contracts; the Gemini calls themselves are
-TODO stubs in services.py that Cycle 2 fills in (until then they return 501).
+real, structured request/response contracts. Transcription is implemented
+(Google genai Speech-to-Text); the rewrite and narrate Gemini calls are TODO
+stubs in services.py that later Cycle 2 milestones fill in (until then 501).
 """
 
 import os
@@ -10,8 +11,9 @@ from dataclasses import asdict
 from http import HTTPStatus
 from pathlib import Path
 
-from flask import Flask, Response, jsonify, request
+from flask import Flask, Response, current_app, jsonify, request
 
+import db
 import services
 from db import DB_PATH, init_db
 from logging_config import logged, setup_logging
@@ -53,6 +55,9 @@ def transcribe() -> Response:
         transcript = services.transcribe_audio(audio_file.read(), audio_file.mimetype)
     except NotImplementedError as exc:
         return error_response("not_implemented", str(exc), HTTPStatus.NOT_IMPLEMENTED)
+    except Exception as exc:
+        return error_response("transcription_failed", str(exc), HTTPStatus.BAD_GATEWAY)
+    db.save_transcript(transcript, db_path=current_app.config["DB_PATH"])
     return jsonify(asdict(TranscriptResponse(transcript=transcript)))
 
 
@@ -106,6 +111,7 @@ def create_app(db_path: Path = DB_PATH) -> Flask:
     """Build the Flask app and make sure the database schema exists."""
     init_db(db_path)
     app = Flask(__name__, static_folder="frontend/static")
+    app.config["DB_PATH"] = Path(db_path)
 
     @app.route("/")
     @logged

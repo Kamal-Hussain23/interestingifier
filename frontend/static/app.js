@@ -36,6 +36,15 @@ const STATUS_TEXT = {
 
 // Returns the state that follows `action` from `state`, or throws if the move
 // is not allowed.
+// Packages a recorded audio Blob as a multipart/form-data upload body for the
+// /api/transcribe endpoint, using the "audio" field name the backend expects.
+// Pure and browser-free so the node:test suite can check it.
+export function buildTranscribeForm(blob) {
+  const form = new FormData();
+  form.append("audio", blob, "recording.webm");
+  return form;
+}
+
 export function nextState(state, action) {
   const next = TRANSITIONS[state]?.[action];
   if (next === undefined) {
@@ -59,6 +68,8 @@ function main() {
   const statusLine = document.getElementById("status-line");
   const playbackPanel = document.getElementById("playback-panel");
   const previewAudio = document.getElementById("preview-audio");
+  const transcriptText = document.getElementById("transcript-text");
+  const storyText = document.getElementById("story-text");
 
   let state = RECORD_STATES.IDLE;
   let stream = null;
@@ -117,8 +128,46 @@ function main() {
     updateUi();
   }
 
-  // Fired by MediaRecorder once it has finished capturing. This is where the
-  // Blob is built — the seam the upload milestone will reuse.
+  // Upload a recorded Blob for transcription and drop the result into the
+  // transcript text. Kept small and separate so the API call doesn't inherit
+  // the MediaRecorder plumbing.
+  async function uploadForTranscription(blob) {
+    try {
+      const response = await fetch("/api/transcribe", {
+        method: "POST",
+        body: buildTranscribeForm(blob),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error?.message ?? `Transcribe failed (${response.status})`);
+      }
+      const data = await response.json();
+      transcriptText.textContent = data.transcript;
+      await rewriteStory(data.transcript);
+    } catch (error) {
+      transcriptText.textContent = `Transcription failed: ${error.message}`;
+    }
+  }
+
+  async function rewriteStory(transcript) {
+    try {
+      const response = await fetch("/api/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error?.message ?? `Rewrite failed (${response.status})`);
+      }
+      const data = await response.json();
+      storyText.textContent = data.story;
+    } catch (error) {
+      storyText.textContent = `Story rewrite failed: ${error.message}`;
+    }
+  }
+
+  // Fired by MediaRecorder once it has finished capturing.
   function onStop() {
     stream?.getTracks().forEach((track) => track.stop());
     const blob = new Blob(audioChunks, {
@@ -128,6 +177,7 @@ function main() {
       URL.revokeObjectURL(previewAudio.src);
     }
     previewAudio.src = URL.createObjectURL(blob);
+    uploadForTranscription(blob);
     updateUi();
   }
 

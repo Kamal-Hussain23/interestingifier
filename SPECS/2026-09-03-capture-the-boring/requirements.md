@@ -85,5 +85,6 @@ and immediately sees it as text in the transcript panel.
 
 ## Status
 
-Planned 2026-09-03 pending implementation. See `validation.md` for the
-spec-sync record once merged.
+Implemented and verified 2026-09-03 on branch
+`feature/2026-09-03-capture-the-boring`; automated checks and live verification
+pass. See `validation.md` for the spec-sync record.

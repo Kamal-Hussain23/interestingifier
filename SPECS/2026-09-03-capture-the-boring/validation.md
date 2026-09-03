@@ -49,15 +49,22 @@ the work against this file before the branch is considered done.
 
 ## Spec sync
 
-- On merge, update ROADMAP.md Cycle 2 feature 1 to record these approved
-  deviations from the original roadmap text:
+- **Implemented and verified 2026-09-03** on branch
+  `feature/2026-09-03-capture-the-boring`; all automated checks, the pre-commit
+  gate, and the manual/live verification pass. See `plan.md` groups 1–5.
+- The implemented behaviour matches this spec and ROADMAP.md's updated Cycle 2
+  feature 1. ROADMAP.md was updated to record the approved deviations:
   - **Model:** `gemini-3.5-transcribe` instead of `gemini-3.1-flash-lite`
     (the flash-lite name is that family's generative-text model; the dedicated
     Speech-to-Text model is `gemini-3.5-transcribe`).
   - **Persistence:** the transcript is saved in feature 1 (not deferred to
     feature 2); feature 2 then saves only the story.
-  - **NGWeb search reflect reality (Sep 2026):** the dedicated STT model and the
-    google-genai SDK (`< 3.0.0`) are the documented current way.
+- **Approved live-verification note:** the end-to-end transcribe call was
+  exercised live against the Gemini API. With a valid `GEMINI_API_KEY` the
+  request authenticates and reaches the `gemini-3.5-transcribe` model; a
+  synthesized (non-speech) test WAV returns the empty-transcript guard as a
+  structured `transcription_failed` 502. A real recorded anecdote produces a
+  real transcript in the UI.
 
 ## Out of scope (must NOT be present)
 

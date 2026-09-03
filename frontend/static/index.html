@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interestingifier™ — Take boring. Make it interesting.</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="site-header">
+    <h1 class="brand">Interestingifier™</h1>
+    <p class="tagline">Take boring. Make it <em>interesting</em>.</p>
+  </header>
+
+  <main class="stage">
+    <section class="record-panel">
+      <button id="record-btn" class="record-btn" type="button" aria-pressed="false"
+              aria-label="Record your story">
+        <span class="record-btn__dot" aria-hidden="true"></span>
+        <span class="record-btn__label" id="record-btn-label">Record your story</span>
+      </button>
+      <p id="status-line" class="status-line" role="status">
+        Tap the button and tell me your boring tale…
+      </p>
+    </section>
+
+    <section class="playback-panel" id="playback-panel" hidden>
+      <h2 class="panel-title">Hear it back</h2>
+      <audio id="preview-audio" controls></audio>
+    </section>
+
+    <section class="panels">
+      <article class="panel" id="transcript-panel">
+        <h2 class="panel-title">Your boring anecdote</h2>
+        <p class="panel-empty">The dull truth will appear here once we can transcribe it.</p>
+      </article>
+      <article class="panel" id="story-panel">
+        <h2 class="panel-title">The interestingified version</h2>
+        <p class="panel-empty">Your gloriously absurd retelling will land here.</p>
+      </article>
+    </section>
+
+    <section class="history-panel">
+      <h2 class="panel-title">Past Interestingifications</h2>
+      <p class="panel-empty">No Interestingifications yet — record your first one!</p>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>Brought to you by the International Bureau of Boring.</p>
+  </footer>
+
+  <script type="module" src="/static/app.js"></script>
+</body>
+</html>

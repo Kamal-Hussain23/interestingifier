@@ -1,0 +1,16 @@
+{
+  "name": "interestingifier-frontend",
+  "version": "0.2.0",
+  "description": "Interestingifier frontend (vanilla HTML, CSS, JS) with the kitsch-styled shell and recording plumbing.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "lint": "eslint static tests",
+    "test": "node --test tests/"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "eslint": "^9.0.0",
+    "globals": "^15.0.0"
+  }
+}

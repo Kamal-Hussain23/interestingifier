@@ -1,0 +1,244 @@
+/* Interestingifier™ — eccentric-kitsch styling.
+ *
+ * The brand rules: loud, joyful, finished. Leopard print, neon gradients,
+ * rhinestone glows, clashing colours, playful fonts. Never bare-bones.
+ * Everything here is pure CSS — no image files, no web fonts — so the app
+ * works even when the Codio box is offline.
+ */
+
+:root {
+  /* The kitsch palette — tweak these and the whole look changes. */
+  --neon-pink: #ff2ea6;
+  --neon-green: #39ff14;
+  --neon-blue: #00e5ff;
+  --gold: #ffd700;
+  --sunset-orange: #ff6d00;
+  --plum: #6a1b4d;
+  --ink: #2b0f1e;
+  --cream: #fff3d6;
+
+  --glow-pink: 0 0 10px rgba(255, 46, 166, 0.7), 0 0 24px rgba(255, 46, 166, 0.4);
+  --glow-gold: 0 0 10px rgba(255, 215, 0, 0.8), 0 0 24px rgba(255, 215, 0, 0.45);
+  --glow-green: 0 0 10px rgba(57, 255, 20, 0.8), 0 0 24px rgba(57, 255, 20, 0.4);
+
+  --font-kitsch: "Comic Sans MS", "Chalkboard SE", "Comic Neue", "Marker Felt", cursive;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: var(--font-kitsch);
+  color: var(--ink);
+  background-color: var(--cream);
+
+  /* Leopard print: tiled radial-gradient spots on the cream base. */
+  background-image:
+    radial-gradient(circle 14px at 25% 25%, rgba(150, 80, 20, 0.45) 0 60%, transparent 65%),
+    radial-gradient(circle 10px at 75% 60%, rgba(150, 80, 20, 0.45) 0 60%, transparent 65%),
+    radial-gradient(circle 12px at 62% 18%, rgba(214, 120, 40, 0.5) 0 60%, transparent 65%),
+    radial-gradient(circle 16px at 40% 78%, rgba(150, 80, 20, 0.4) 0 60%, transparent 65%);
+  background-size: 220px 220px;
+  background-repeat: repeat;
+}
+
+/* ---------- Header ------------------------------------------------------- */
+
+.site-header {
+  text-align: center;
+  padding: 2rem 1rem 1rem;
+}
+
+.brand {
+  margin: 0;
+  font-size: clamp(2.2rem, 6vw, 4rem);
+  color: var(--plum);
+  text-shadow: 2px 2px 0 var(--neon-blue), var(--glow-pink);
+}
+
+.tagline {
+  margin: 0.5rem 0 0;
+  font-size: clamp(1.1rem, 2.5vw, 1.6rem);
+  color: var(--neon-pink);
+  text-shadow: 1px 1px 0 var(--cream);
+}
+
+.tagline em {
+  color: var(--sunset-orange);
+  font-style: normal;
+}
+
+/* ---------- Main stage --------------------------------------------------- */
+
+.stage {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 1rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.record-panel {
+  text-align: center;
+  padding: 1.5rem;
+  border-radius: 24px;
+  background: linear-gradient(135deg, var(--plum), var(--neon-pink));
+  border: 4px dashed var(--gold);
+  box-shadow: var(--glow-pink);
+}
+
+/* The hero button. */
+.record-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-family: var(--font-kitsch);
+  font-size: 1.4rem;
+  font-weight: bold;
+  color: var(--ink);
+  background: linear-gradient(160deg, var(--gold), var(--sunset-orange));
+  border: 4px solid var(--cream);
+  border-radius: 999px;
+  padding: 0.9rem 2.2rem;
+  cursor: pointer;
+  box-shadow: var(--glow-gold);
+  transition: transform 0.1s ease;
+}
+
+.record-btn:hover {
+  transform: scale(1.04);
+}
+
+.record-btn__dot {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--neon-pink);
+  box-shadow: 0 0 8px var(--neon-pink);
+}
+
+/* Recording state: pulsing red dot, green ring. */
+.record-btn.recording {
+  background: linear-gradient(160deg, var(--neon-pink), var(--plum));
+  color: var(--cream);
+  border-color: var(--neon-green);
+  box-shadow: var(--glow-green);
+}
+
+.record-btn.recording .record-btn__dot {
+  background: var(--neon-green);
+  box-shadow: 0 0 8px var(--neon-green);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+}
+
+/* Recorded state: done, ready to play. */
+.record-btn.recorded {
+  background: linear-gradient(160deg, var(--neon-green), #0f9d0f);
+  color: var(--ink);
+  border-color: var(--gold);
+  box-shadow: var(--glow-green);
+}
+
+.record-btn.recorded .record-btn__dot {
+  background: var(--gold);
+  box-shadow: 0 0 8px var(--gold);
+}
+
+.status-line {
+  margin: 1rem 0 0;
+  font-size: 1.15rem;
+  color: var(--cream);
+  text-shadow: 1px 1px 0 var(--ink);
+}
+
+/* ---------- Panels ------------------------------------------------------- */
+
+.playback-panel,
+.panel,
+.history-panel {
+  border-radius: 20px;
+  padding: 1.25rem;
+  border: 3px solid var(--gold);
+  box-shadow: var(--glow-gold);
+}
+
+.playback-panel {
+  background: linear-gradient(135deg, var(--neon-blue), var(--plum));
+  color: var(--cream);
+  text-align: center;
+}
+
+.playback-panel[hidden] {
+  display: none;
+}
+
+audio {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.panels {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.25rem;
+}
+
+.panel {
+  background: linear-gradient(160deg, var(--cream), #ffe9b8);
+  border-style: dotted;
+}
+
+.panel-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.25rem;
+  color: var(--plum);
+  text-shadow: 1px 1px 0 var(--neon-blue);
+}
+
+.panel-empty {
+  margin: 0;
+  color: #7a4a10;
+  font-style: italic;
+}
+
+.history-panel {
+  background: linear-gradient(160deg, var(--sunset-orange), var(--gold));
+}
+
+.history-panel .panel-title {
+  color: var(--ink);
+  text-shadow: 1px 1px 0 var(--cream);
+}
+
+.history-panel .panel-empty {
+  color: var(--plum);
+}
+
+/* ---------- Footer ------------------------------------------------------- */
+
+.site-footer {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--plum);
+}
+
+/* ---------- Responsive --------------------------------------------------- */
+
+@media (max-width: 640px) {
+  .panels {
+    grid-template-columns: 1fr;
+  }
+
+  .record-btn {
+    font-size: 1.1rem;
+    padding: 0.8rem 1.6rem;
+  }
+}

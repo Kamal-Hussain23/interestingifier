@@ -1,0 +1,45 @@
+# See https://pre-commit.com for more information
+repos:
+  # ---------- Secrets ----------
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.21.2
+    hooks:
+      - id: gitleaks
+
+  # ---------- Python ----------
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.0
+    hooks:
+      - id: ruff
+        name: ruff (lint + autofix)
+        args: [--fix]
+      - id: ruff-format
+        name: ruff-format
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: mypy --ignore-missing-imports .
+        language: system
+        pass_filenames: false
+      - id: pytest
+        name: pytest
+        entry: pytest
+        language: system
+        types: [python]
+        pass_filenames: false
+
+  # ---------- Frontend (npm) ----------
+  - repo: local
+    hooks:
+      - id: frontend-lint
+        name: frontend lint
+        entry: npm run lint --prefix frontend
+        language: system
+        pass_filenames: false
+      - id: frontend-test
+        name: frontend tests
+        entry: npm test --prefix frontend
+        language: system
+        pass_filenames: false

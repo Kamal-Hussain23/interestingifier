@@ -69,6 +69,7 @@ function main() {
   const playbackPanel = document.getElementById("playback-panel");
   const previewAudio = document.getElementById("preview-audio");
   const transcriptText = document.getElementById("transcript-text");
+  const storyText = document.getElementById("story-text");
 
   let state = RECORD_STATES.IDLE;
   let stream = null;
@@ -142,8 +143,27 @@ function main() {
       }
       const data = await response.json();
       transcriptText.textContent = data.transcript;
+      await rewriteStory(data.transcript);
     } catch (error) {
       transcriptText.textContent = `Transcription failed: ${error.message}`;
+    }
+  }
+
+  async function rewriteStory(transcript) {
+    try {
+      const response = await fetch("/api/rewrite", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transcript }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error?.message ?? `Rewrite failed (${response.status})`);
+      }
+      const data = await response.json();
+      storyText.textContent = data.story;
+    } catch (error) {
+      storyText.textContent = `Story rewrite failed: ${error.message}`;
     }
   }
 

@@ -81,6 +81,17 @@ def save_transcript(raw_text: str, db_path: Path = DB_PATH) -> Transcript:
 
 
 @logged
+def fetch_latest_transcript_id(db_path: Path = DB_PATH) -> int | None:
+    """Return the ID of the most recently saved transcript, or None if none exist."""
+    connection = get_connection(db_path)
+    try:
+        row = connection.execute("SELECT id FROM transcripts ORDER BY id DESC LIMIT 1").fetchone()
+    finally:
+        connection.close()
+    return int(row["id"]) if row else None
+
+
+@logged
 def fetch_transcript(transcript_id: int, db_path: Path = DB_PATH) -> Transcript | None:
     """Return the transcript with the given id, or None if it does not exist."""
     connection = get_connection(db_path)

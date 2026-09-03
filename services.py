@@ -19,6 +19,15 @@ TRANSCRIPTION_PROMPT = (
     "Return only the plain transcript text with no commentary."
 )
 
+REWRITE_MODEL = "gemini-3.1-flash-lite"
+
+REWRITE_PROMPT = (
+    "Rewrite the user's boring anecdote as an over-the-top, hilarious, "
+    "theatrical story. Amplify every detail to absurd proportions. "
+    "Use dramatic flair, vivid imagery, and comedic exaggeration. "
+    "Return only the rewritten story with no commentary."
+)
+
 
 def build_client(api_key: str) -> genai.Client:
     """Build the Gemini client from the API key.
@@ -47,15 +56,15 @@ def transcribe_audio(audio: bytes, mime_type: str) -> str:
 
 @logged
 def rewrite_story(transcript: str) -> str:
-    """Rewrite a boring transcript as an over-the-top story (Gemini generative text).
-
-    TODO(Cycle 2, milestone 2 "The Vibrant Transformation"): send `transcript`
-    to Gemini with an over-the-top prompt and return the absurd story.
-    """
-    raise NotImplementedError(
-        "Rewriting is not implemented yet — fill in the Gemini generative-text "
-        "call here (Cycle 2, milestone 2)."
+    """Rewrite a boring transcript as an over-the-top story (Gemini generative text)."""
+    client = build_client(config.get_gemini_api_key())
+    response = client.models.generate_content(
+        model=REWRITE_MODEL,
+        contents=[REWRITE_PROMPT, transcript],
     )
+    if response.text is None:
+        raise RuntimeError("Gemini returned an empty story response.")
+    return response.text
 
 
 @logged

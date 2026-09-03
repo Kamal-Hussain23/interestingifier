@@ -81,6 +81,16 @@ def rewrite() -> Response:
         story = services.rewrite_story(transcript)
     except NotImplementedError as exc:
         return error_response("not_implemented", str(exc), HTTPStatus.NOT_IMPLEMENTED)
+    except Exception as exc:
+        return error_response("rewrite_failed", str(exc), HTTPStatus.BAD_GATEWAY)
+    transcript_id = db.fetch_latest_transcript_id(db_path=current_app.config["DB_PATH"])
+    if transcript_id is None:
+        return error_response(
+            "no_transcript",
+            "No transcript found to link story to.",
+            HTTPStatus.BAD_REQUEST,
+        )
+    db.save_story(transcript_id, story, db_path=current_app.config["DB_PATH"])
     return jsonify(asdict(StoryResponse(story=story)))
 
 

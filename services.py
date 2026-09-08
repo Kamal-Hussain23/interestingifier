@@ -6,6 +6,8 @@ two milestones and still raise NotImplementedError. Business logic stays
 logging-free; the @logged decorator handles that.
 """
 
+import base64
+
 from google import genai
 from google.genai import types
 
@@ -26,6 +28,13 @@ REWRITE_PROMPT = (
     "theatrical story. Amplify every detail to absurd proportions. "
     "Use dramatic flair, vivid imagery, and comedic exaggeration. "
     "Return only the rewritten story with no commentary."
+)
+
+TTS_MODEL = "gemini-3.1-flash-tts-preview"
+
+TTS_PROMPT = (
+    "Narrate the following story in a funny, energetic Aussie accent. "
+    "Use dramatic flair and comedic timing. Return only the audio narration."
 )
 
 
@@ -69,15 +78,29 @@ def rewrite_story(transcript: str) -> str:
 
 @logged
 def narrate_story(story: str) -> bytes:
-    """Narrate a story aloud as audio (Gemini Text-to-Speech).
-
-    TODO(Cycle 2, milestone 3 "Vocalizing the Absurd"): send `story` to Gemini
-    Text-to-Speech and return the audio bytes. The TTS config must explicitly
-    request a funny, energetic Aussie accent (MISSION.md's signature voice) —
-    not a plain, accent-free read-out.
-    """
-    raise NotImplementedError(
-        "Narration is not implemented yet — fill in the Gemini Text-to-Speech "
-        "call here (Cycle 2, milestone 3), explicitly requesting a funny "
-        "energetic Aussie accent."
+    """Narrate a story aloud as audio (Gemini Text-to-Speech)."""
+    client = build_client(config.get_gemini_api_key())
+    response = client.models.generate_content(
+        model=TTS_MODEL,
+        contents=[TTS_PROMPT, story],
+        config=types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(voice_name="Aoede")
+                )
+            ),
+        ),
     )
+    # Extract audio bytes from response
+    if (
+        not response.candidates
+        or not response.candidates[0].content
+        or not response.candidates[0].content.parts
+    ):
+        raise RuntimeError("Gemini returned an empty TTS response.")
+    part = response.candidates[0].content.parts[0]
+    if part.inline_data is None or part.inline_data.data is None:
+        raise RuntimeError("Gemini returned an empty TTS response (no inline data).")
+    audio_b64 = part.inline_data.data
+    return base64.b64decode(audio_b64)

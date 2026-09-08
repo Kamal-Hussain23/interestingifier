@@ -63,8 +63,29 @@ the work against this file before the branch is considered done.
   exercised live against the Gemini API. With a valid `GEMINI_API_KEY` the
   request authenticates and reaches the `gemini-3.5-transcribe` model; a
   synthesized (non-speech) test WAV returns the empty-transcript guard as a
-  structured `transcription_failed` 502. A real recorded anecdote produces a
-  real transcript in the UI.
+  structured `transcription_failed` 502.
+
+## Follow-up fix (2026-09-08) — transcription never truly worked
+
+Re-testing with real recordings exposed that `/api/transcribe` **always** failed
+(502). Root cause and fix, recorded here honestly because the earlier note
+claimed "a real recorded anecdote produces a real transcript in the UI" without
+having been confirmed with real speech:
+
+- `gemini-3.5-transcribe` requires **`AudioTranscriptionConfig`** inside
+  `GenerateContentConfig`; without it the API returns HTTP 200 with an **empty
+  body** (`response.text is None`).
+- The transcript is delivered on **`part.audio_transcription.text`** (via
+  `response.parts`), not `response.text`.
+- Fix: `transcribe_audio` now passes
+  `config=types.GenerateContentConfig(audio_transcription_config=types.AudioTranscriptionConfig())`,
+  sends only the audio `Part` (the leading text prompt was dropped to match the
+  documented usage), and reads `part.audio_transcription.text` (with a `part.text`
+  fallback), keeping the empty-transcript guard.
+- Verified live on 2026-09-08: a real TTS speech clip was transcribed
+  ("The bus feared him." -> "The boss feared him."), then rewritten and
+  narrated, with all three persisted to SQLite. Test fakes now model the real
+  response shape (`audio_transcription` on parts).
 
 ## Out of scope (must NOT be present)
 

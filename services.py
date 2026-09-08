@@ -18,11 +18,6 @@ from models import Absurdity
 
 TRANSCRIPTION_MODEL = "gemini-3.5-transcribe"
 
-TRANSCRIPTION_PROMPT = (
-    "Transcribe the user's spoken anecdote exactly as they said it. "
-    "Return only the plain transcript text with no commentary."
-)
-
 REWRITE_MODEL = "gemini-3.1-flash-lite"
 
 REWRITE_PROMPTS = {
@@ -102,14 +97,22 @@ def transcribe_audio(audio: bytes, mime_type: str) -> str:
     client = build_client(config.get_gemini_api_key())
     response = client.models.generate_content(
         model=TRANSCRIPTION_MODEL,
-        contents=[
-            TRANSCRIPTION_PROMPT,
-            types.Part.from_bytes(data=audio, mime_type=mime_type),
-        ],
+        contents=[types.Part.from_bytes(data=audio, mime_type=mime_type)],
+        config=types.GenerateContentConfig(
+            audio_transcription_config=types.AudioTranscriptionConfig(),
+        ),
     )
-    if response.text is None:
-        raise RuntimeError("Gemini returned an empty transcription response.")
-    return response.text
+    # The transcribe model reports the transcript on each part's
+    # `audio_transcription` field (not response.text).
+    for part in response.parts or []:
+        transcription = getattr(part, "audio_transcription", None)
+        if transcription is not None:
+            text = getattr(transcription, "text", None)
+            if text:
+                return str(text)
+        if part.text:
+            return part.text
+    raise RuntimeError("Gemini returned an empty transcription response.")
 
 
 @logged

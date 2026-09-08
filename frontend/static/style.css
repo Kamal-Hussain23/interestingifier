@@ -153,19 +153,19 @@ body {
 }
 
 .status-line {
-  display: block;
-  margin: 0.9rem auto 0.7rem;
+  margin: 1rem 0 0;
+  font-size: 1.15rem;
   color: var(--cream);
-  font-style: italic;
+  text-shadow: 1px 1px 0 var(--ink);
 }
 
 /* The three-way Absurdity slider — a segmented kitsch classic. */
 .absurdity-slider {
+  max-width: 34rem;
   margin: 1rem auto 0;
   padding: 0.8rem 1rem;
-  max-width: 34rem;
   border: 3px solid var(--cream);
-  border-radius: 999px;
+  border-radius: 24px;
   background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
   box-shadow: 0 0 10px rgba(0, 229, 255, 0.7), 0 0 24px rgba(0, 229, 255, 0.4);
 }
@@ -201,15 +201,12 @@ body {
   accent-color: var(--neon-pink);
 }
 
-.absurdity-slider__option:has(input[type="radio"]:checked) {
+/* The checked option — highlighted from JS via .is-selected (no :has()
+   dependency) so the control reads correctly on older browser engines. */
+.absurdity-slider__option.is-selected {
   background: linear-gradient(160deg, var(--gold), var(--sunset-orange));
   color: var(--ink);
   box-shadow: var(--glow-gold);
-}
-  margin: 1rem 0 0;
-  font-size: 1.15rem;
-  color: var(--cream);
-  text-shadow: 1px 1px 0 var(--ink);
 }
 
 /* ---------- Panels ------------------------------------------------------- */

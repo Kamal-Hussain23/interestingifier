@@ -14,8 +14,8 @@ test("recording + stop -> recorded", () => {
   assert.equal(nextState("recording", "stop"), "recorded");
 });
 
-test("recorded + clear -> idle", () => {
-  assert.equal(nextState("recorded", "clear"), "idle");
+test("recorded + start -> recording (record again)", () => {
+  assert.equal(nextState("recorded", "start"), "recording");
 });
 
 test("invalid transitions throw", () => {
@@ -23,8 +23,8 @@ test("invalid transitions throw", () => {
   assert.throws(() => nextState("recording", "clear"));
   assert.throws(() => nextState("idle", "stop"));
   assert.throws(() => nextState("idle", "clear"));
-  assert.throws(() => nextState("recorded", "start"));
   assert.throws(() => nextState("recorded", "stop"));
+  assert.throws(() => nextState("recorded", "clear"));
   assert.throws(() => nextState("banana", "start"));
   assert.throws(() => nextState("idle", "banana"));
 });

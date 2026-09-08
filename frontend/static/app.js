@@ -18,7 +18,6 @@ export const RECORD_STATES = {
 export const ACTIONS = {
   START: "start",
   STOP: "stop",
-  CLEAR: "clear",
 };
 
 // The three Absurdity levels, matching the backend /api/rewrite wire tokens.
@@ -26,11 +25,13 @@ export const ABSURDITIES = ["slightly_weird", "unhinged", "total_fever_dream"];
 
 export const DEFAULT_ABSURDITY = "unhinged";
 
-// The only legal moves: idle --start--> recording --stop--> recorded --clear--> idle.
+// The only legal moves: idle --start--> recording --stop--> recorded, and
+// recorded --start--> recording so "Record again" starts a fresh take at once
+// (the old clip is simply replaced).
 const TRANSITIONS = {
   [RECORD_STATES.IDLE]: { [ACTIONS.START]: RECORD_STATES.RECORDING },
   [RECORD_STATES.RECORDING]: { [ACTIONS.STOP]: RECORD_STATES.RECORDED },
-  [RECORD_STATES.RECORDED]: { [ACTIONS.CLEAR]: RECORD_STATES.IDLE },
+  [RECORD_STATES.RECORDED]: { [ACTIONS.START]: RECORD_STATES.RECORDING },
 };
 
 const STATUS_TEXT = {
@@ -104,6 +105,7 @@ function main() {
   let stream = null;
   let mediaRecorder = null;
   let audioChunks = [];
+  let starting = false;
   // The latest transcript, remembered so flipping the Absurdity slider can
   // re-rewrite the same anecdote at a new level without re-recording.
   let currentTranscript = "";
@@ -135,10 +137,15 @@ function main() {
   }
 
   async function startRecording() {
+    // Guard against a double-click while the mic request is still in flight.
+    if (starting || state === RECORD_STATES.RECORDING) {
+      return;
+    }
     if (!canRecord()) {
       statusLine.textContent = "Sorry — this browser can't record audio.";
       return;
     }
+    starting = true;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunks = [];
@@ -153,6 +160,8 @@ function main() {
       state = nextState(state, ACTIONS.START);
     } catch {
       statusLine.textContent = "Microphone unavailable — please allow mic access.";
+    } finally {
+      starting = false;
     }
     updateUi();
   }
@@ -242,35 +251,38 @@ function main() {
     updateUi();
   }
 
-  function reset() {
-    state = nextState(state, ACTIONS.CLEAR);
-    if (previewAudio.src) {
-      URL.revokeObjectURL(previewAudio.src);
-    }
-    previewAudio.removeAttribute("src");
-    updateUi();
-  }
-
   recordBtn.addEventListener("click", () => {
-    if (state === RECORD_STATES.IDLE) {
-      startRecording();
-    } else if (state === RECORD_STATES.RECORDING) {
+    if (state === RECORD_STATES.RECORDING) {
       stopRecording();
     } else {
-      reset();
+      // idle, or recorded — start a fresh take (recorded covers "Record again").
+      startRecording();
     }
   });
+
+  // A small helper that highlights whichever Absurdity option is checked.
+  // Browser-agnostic (no :has()): the labels get an .is-selected class driven
+  // from JS, so the slider reads correctly even on older Codio browsers.
+  function syncAbsurdityHighlight() {
+    document.querySelectorAll(".absurdity-slider__option").forEach((option) => {
+      const checked = option.querySelector('input[name="absurdity"]:checked');
+      option.classList.toggle("is-selected", Boolean(checked));
+    });
+  }
 
   // Flipping the slider re-rewrites the last transcript at the new level
   // (which re-narrates the fresh story too) — or does nothing if there is no
   // transcript yet.
   document.querySelectorAll('input[name="absurdity"]').forEach((input) => {
     input.addEventListener("change", () => {
+      syncAbsurdityHighlight();
       if (currentTranscript) {
         rewriteStory(currentTranscript);
       }
     });
   });
+
+  syncAbsurdityHighlight();
 }
 
 // Only wire up the DOM when a browser is available; Node (the test runner)

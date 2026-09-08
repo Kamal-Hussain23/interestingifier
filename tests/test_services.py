@@ -207,6 +207,51 @@ def test_rewrite_prompts_for_each_level_are_distinct(monkeypatch: pytest.MonkeyP
     assert len(prompts) == len(services.REWRITE_PROMPTS)
 
 
+def test_drama_twists_is_a_non_empty_list() -> None:
+    """DRAMA_TWISTS is a non-empty list of non-empty strings."""
+    assert isinstance(services.DRAMA_TWISTS, list)
+    assert len(services.DRAMA_TWISTS) > 0
+    assert all(isinstance(twist, str) and twist.strip() for twist in services.DRAMA_TWISTS)
+
+
+def test_pick_drama_twist_uses_injected_pick() -> None:
+    """pick_drama_twist returns exactly what the injected picker chooses."""
+    assert services.pick_drama_twist(lambda seq: seq[2]) == services.DRAMA_TWISTS[2]
+
+
+def _rewrite_contents_used(monkeypatch: pytest.MonkeyPatch, twist: str | None = None) -> list[str]:
+    """Rewrite a transcript and return the full contents list sent to Gemini."""
+    fake_client = _monkeypatch_gemini(monkeypatch, "", "A STORY.", b"")
+    if twist is None:
+        services.rewrite_story("I missed the bus.")
+    else:
+        services.rewrite_story("I missed the bus.", twist=twist)
+    return list(fake_client.models.last_kwargs["contents"])
+
+
+def test_rewrite_story_threads_twist_into_contents(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A twist is injected between the level prompt and the transcript."""
+    contents = _rewrite_contents_used(monkeypatch, twist="Locked-room courtroom drama.")
+
+    assert contents == [
+        services.REWRITE_PROMPTS[Absurdity.UNHINGED],
+        "Locked-room courtroom drama.",
+        "I missed the bus.",
+    ]
+
+
+def test_rewrite_story_without_twist_contents_unchanged(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Without a twist, the contents stay exactly [prompt, transcript]."""
+    contents = _rewrite_contents_used(monkeypatch)
+
+    assert contents == [
+        services.REWRITE_PROMPTS[Absurdity.UNHINGED],
+        "I missed the bus.",
+    ]
+
+
 def test_narrate_story_returns_playable_wav(monkeypatch: pytest.MonkeyPatch) -> None:
     """narrate_story wraps the Gemini PCM bytes in a playable WAV container."""
     _monkeypatch_gemini(monkeypatch, "", "", b"fake-audio-bytes")

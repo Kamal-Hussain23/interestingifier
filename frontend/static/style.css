@@ -197,6 +197,22 @@ body {
   transform: scale(1.05);
 }
 
+.headline {
+  margin: 0 0 0.4rem;
+  padding: 0.35rem 0.7rem;
+  font-size: 1.1rem;
+  font-weight: 900;
+  letter-spacing: 0.05em;
+  color: var(--cream);
+  background: var(--plum);
+  border-left: 4px solid var(--gold);
+  text-transform: none;
+}
+
+.headline[hidden] {
+  display: none;
+}
+
 .absurdity-slider__option input[type="radio"] {
   accent-color: var(--neon-pink);
 }

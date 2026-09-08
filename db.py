@@ -45,6 +45,7 @@ def init_db(db_path: Path = DB_PATH) -> None:
                 transcript_id INTEGER NOT NULL REFERENCES transcripts(id),
                 story_text TEXT NOT NULL,
                 absurdity TEXT NOT NULL DEFAULT 'unhinged',
+                headline TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL DEFAULT (datetime('now'))
             );
 
@@ -61,18 +62,20 @@ def init_db(db_path: Path = DB_PATH) -> None:
 
 
 def upgrade_stories_schema(connection: sqlite3.Connection) -> None:
-    """Add the absurdity column to a stories table built before this feature.
+    """Add new columns to a stories table built before this feature.
 
-    Databases created by older app versions do not have the column. Rather than
-    a migration tool, a simple check-then-alter keeps this idempotent: if the
-    column is already there we do nothing, and old rows get the 'unhinged'
-    default automatically.
+    Databases created by older app versions do not have the absurdity or
+    headline columns. Rather than a migration tool, a simple check-then-alter
+    keeps this idempotent: if a column is already there we do nothing, and old
+    rows get the column's default automatically.
     """
     columns = {row[1] for row in connection.execute("PRAGMA table_info(stories)")}
     if "absurdity" not in columns:
         connection.execute(
             "ALTER TABLE stories ADD COLUMN absurdity TEXT NOT NULL DEFAULT 'unhinged'"
         )
+    if "headline" not in columns:
+        connection.execute("ALTER TABLE stories ADD COLUMN headline TEXT NOT NULL DEFAULT ''")
 
 
 @logged
@@ -129,12 +132,14 @@ def save_story(
     transcript_id: int,
     story_text: str,
     absurdity: str = "unhinged",
+    headline: str = "",
     db_path: Path = DB_PATH,
 ) -> Story:
     """Save a story linked to an existing transcript and return the stored row.
 
     absurdity is the wire token of the Absurdity level used to write it
-    (defaults to 'unhinged').
+    (defaults to 'unhinged'); headline is the clickbait caption stored
+    alongside the story (defaults to an empty string).
 
     Raises sqlite3.IntegrityError if transcript_id does not exist (the schema's
     foreign key), so a story can never dangle without its transcript.
@@ -142,14 +147,16 @@ def save_story(
     connection = get_connection(db_path)
     try:
         cursor = connection.execute(
-            "INSERT INTO stories (transcript_id, story_text, absurdity) VALUES (?, ?, ?)",
-            (transcript_id, story_text, absurdity),
+            "INSERT INTO stories (transcript_id, story_text, absurdity, headline) "
+            "VALUES (?, ?, ?, ?)",
+            (transcript_id, story_text, absurdity, headline),
         )
         connection.commit()
         assert cursor.lastrowid is not None
         story_id = int(cursor.lastrowid)
         row = connection.execute(
-            "SELECT id, transcript_id, story_text, absurdity, created_at FROM stories WHERE id = ?",
+            "SELECT id, transcript_id, story_text, absurdity, headline, created_at "
+            "FROM stories WHERE id = ?",
             (story_id,),
         ).fetchone()
     finally:
@@ -161,6 +168,7 @@ def save_story(
         story_text=row["story_text"],
         created_at=row["created_at"],
         absurdity=row["absurdity"],
+        headline=row["headline"],
     )
 
 
@@ -170,7 +178,8 @@ def fetch_story(story_id: int, db_path: Path = DB_PATH) -> Story | None:
     connection = get_connection(db_path)
     try:
         row = connection.execute(
-            "SELECT id, transcript_id, story_text, absurdity, created_at FROM stories WHERE id = ?",
+            "SELECT id, transcript_id, story_text, absurdity, headline, created_at "
+            "FROM stories WHERE id = ?",
             (story_id,),
         ).fetchone()
     finally:
@@ -183,6 +192,7 @@ def fetch_story(story_id: int, db_path: Path = DB_PATH) -> Story | None:
         story_text=row["story_text"],
         created_at=row["created_at"],
         absurdity=row["absurdity"],
+        headline=row["headline"],
     )
 
 
@@ -192,7 +202,7 @@ def list_stories(db_path: Path = DB_PATH) -> list[Story]:
     connection = get_connection(db_path)
     try:
         rows = connection.execute(
-            "SELECT id, transcript_id, story_text, absurdity, created_at "
+            "SELECT id, transcript_id, story_text, absurdity, headline, created_at "
             "FROM stories ORDER BY id DESC"
         ).fetchall()
     finally:
@@ -204,6 +214,7 @@ def list_stories(db_path: Path = DB_PATH) -> list[Story]:
             story_text=row["story_text"],
             created_at=row["created_at"],
             absurdity=row["absurdity"],
+            headline=row["headline"],
         )
         for row in rows
     ]

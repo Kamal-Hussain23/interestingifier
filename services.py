@@ -42,6 +42,14 @@ REWRITE_PROMPTS = {
     ),
 }
 
+HEADLINE_MODEL = "gemini-3.1-flash-lite"
+
+HEADLINE_PROMPT = (
+    "Invent a sensational, all-caps clickbait headline for the following story. "
+    "One short punchy line, no commentary, no quotes, no punctuation gimmicks. "
+    "Return only the headline."
+)
+
 TTS_MODEL = "gemini-3.1-flash-tts-preview"
 
 # Dramatic-angle instructions for a "More Drama!" re-roll: each click picks a
@@ -161,6 +169,19 @@ def rewrite_story(
     if response.text is None:
         raise RuntimeError("Gemini returned an empty story response.")
     return response.text
+
+
+@logged
+def generate_headline(story: str) -> str:
+    """Generate a sensational clickbait headline for a story (Gemini generative text)."""
+    client = build_client(config.get_gemini_api_key())
+    response = client.models.generate_content(
+        model=HEADLINE_MODEL,
+        contents=[HEADLINE_PROMPT, story],
+    )
+    if response.text is None:
+        raise RuntimeError("Gemini returned an empty headline response.")
+    return response.text.upper()
 
 
 @logged

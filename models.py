@@ -44,6 +44,7 @@ class StoryResponse:
     """Success body of POST /api/rewrite."""
 
     story: str
+    headline: str = ""
 
 
 @dataclass(frozen=True)
@@ -72,3 +73,4 @@ class Story:
     story_text: str
     created_at: str
     absurdity: str = "unhinged"
+    headline: str = ""

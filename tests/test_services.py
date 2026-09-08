@@ -252,6 +252,49 @@ def test_rewrite_story_without_twist_contents_unchanged(
     ]
 
 
+def test_generate_headline_returns_uppercase(monkeypatch: pytest.MonkeyPatch) -> None:
+    """generate_headline returns the model text uppercased."""
+    _monkeypatch_gemini(monkeypatch, "", "Screaming headline!", b"")
+
+    result = services.generate_headline("A boring story.")
+
+    assert result == "SCREAMING HEADLINE!"
+
+
+def test_generate_headline_sends_model_and_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """generate_headline calls Gemini with the headline model and prompt."""
+    fake_client = _monkeypatch_gemini(monkeypatch, "", "BIG NEWS", b"")
+
+    services.generate_headline("A boring story.")
+
+    kwargs = fake_client.models.last_kwargs
+    assert kwargs["model"] == services.HEADLINE_MODEL
+    assert kwargs["contents"] == [services.HEADLINE_PROMPT, "A boring story."]
+
+
+def test_generate_headline_raises_on_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """generate_headline raises when Gemini returns no text."""
+
+    class _EmptyResponse:
+        text: str | None = None
+
+    class _EmptyModels:
+        last_kwargs: dict[str, object] = {}
+
+        def generate_content(self, **kw: object) -> _EmptyResponse:
+            self.last_kwargs = kw
+            return _EmptyResponse()
+
+    class _EmptyClient:
+        models = _EmptyModels()
+
+    monkeypatch.setattr(config, "get_gemini_api_key", lambda: "fake")
+    monkeypatch.setattr(services, "build_client", lambda api_key: _EmptyClient())
+
+    with pytest.raises(RuntimeError, match="empty headline"):
+        services.generate_headline("A story.")
+
+
 def test_narrate_story_returns_playable_wav(monkeypatch: pytest.MonkeyPatch) -> None:
     """narrate_story wraps the Gemini PCM bytes in a playable WAV container."""
     _monkeypatch_gemini(monkeypatch, "", "", b"fake-audio-bytes")

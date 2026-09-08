@@ -1,5 +1,6 @@
 """Smoke and contract tests for the Flask application in app.py."""
 
+import wave
 from http import HTTPStatus
 from io import BytesIO
 from pathlib import Path
@@ -16,6 +17,17 @@ NOT_IMPLEMENTED_CODE = "not_implemented"
 def error_code(client_response: TestResponse) -> str:
     """Pull the error code out of the shared error body."""
     return str(client_response.get_json()["error"]["code"])
+
+
+def mini_wav() -> bytes:
+    """Build a tiny but valid WAV file to stand in for narrated audio."""
+    buffer = BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(24000)
+        wav.writeframes(b"\x00\x00")
+    return buffer.getvalue()
 
 
 def test_index_returns_html(tmp_path: Path) -> None:
@@ -179,16 +191,46 @@ def test_narrate_rejects_blank_story(tmp_path: Path) -> None:
 
 
 def test_narrate_success_returns_audio(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    """POST /api/narrate with a valid story returns audio bytes."""
+    """POST /api/narrate with a valid story returns a playable WAV."""
     app = create_app(db_path=tmp_path / "test.db")
     client = app.test_client()
+    wav_bytes = mini_wav()
     monkeypatch.setattr(
         "app.services.narrate_story",
-        lambda story: b"fake-audio-bytes",
+        lambda story: wav_bytes,
     )
 
     response = client.post("/api/narrate", json={"story": "THE BUS FEARED HIM."})
 
     assert response.status_code == HTTPStatus.OK
     assert response.content_type == "audio/wav"
-    assert response.data == b"fake-audio-bytes"
+    assert response.data.startswith(b"RIFF")
+    assert response.data == wav_bytes
+
+
+def test_narrate_failure_returns_502(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A Gemini failure during narration is a structured 502, not a crash."""
+    app = create_app(db_path=tmp_path / "test.db")
+    client = app.test_client()
+    monkeypatch.setattr(
+        "app.services.narrate_story",
+        lambda story: (_ for _ in ()).throw(RuntimeError("Gemini exploded.")),
+    )
+
+    response = client.post("/api/narrate", json={"story": "THE BUS FEARED HIM."})
+
+    assert response.status_code == HTTPStatus.BAD_GATEWAY
+    assert error_code(response) == "narration_failed"
+
+
+def test_rewrite_no_transcript_returns_400(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """A rewrite with no transcript saved cannot link a story and is a 400."""
+    db_file = tmp_path / "test.db"
+    app = create_app(db_path=db_file)
+    client = app.test_client()
+    monkeypatch.setattr("app.services.rewrite_story", lambda transcript: "A STORY.")
+
+    response = client.post("/api/rewrite", json={"transcript": "I missed the bus."})
+
+    assert response.status_code == HTTPStatus.BAD_REQUEST
+    assert error_code(response) == "no_transcript"

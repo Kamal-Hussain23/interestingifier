@@ -45,6 +45,18 @@ export function buildTranscribeForm(blob) {
   return form;
 }
 
+// Builds the JSON request body for POST /api/rewrite. Pure and browser-free so
+// the node:test suite can check it.
+export function buildRewriteBody(transcript) {
+  return JSON.stringify({ transcript });
+}
+
+// Builds the JSON request body for POST /api/narrate. Pure and browser-free so
+// the node:test suite can check it.
+export function buildNarrateBody(story) {
+  return JSON.stringify({ story });
+}
+
 export function nextState(state, action) {
   const next = TRANSITIONS[state]?.[action];
   if (next === undefined) {
@@ -154,7 +166,7 @@ function main() {
       const response = await fetch("/api/rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ transcript }),
+        body: buildRewriteBody(transcript),
       });
       if (!response.ok) {
         const error = await response.json().catch(() => null);
@@ -173,7 +185,7 @@ function main() {
       const response = await fetch("/api/narrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ story }),
+        body: buildNarrateBody(story),
       });
       if (!response.ok) {
         const error = await response.json().catch(() => null);

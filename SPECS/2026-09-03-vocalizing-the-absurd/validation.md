@@ -49,8 +49,26 @@ the work against this file before the branch is considered done.
 
 ## Spec sync
 
-- On merge, update ROADMAP.md Cycle 2 feature 3 to record any approved
-  deviations from the original roadmap text.
+- **Implemented and verified 2026-09-08** — automated checks, pre-commit gate,
+  and live verification pass. See `plan.md` groups 1–4.
+- **Approved deviation (Audio format):** The original decision said "The SDK
+  returns base64-encoded audio data … MIME type will be `audio/wav`." Live
+  testing showed that is wrong for this SDK/model combo:
+  - The `google-genai` SDK returns `inline_data.data` as **already-decoded
+    bytes**, not a base64 string.
+  - The `gemini-3.1-flash-tts-preview` model emits **raw L16 PCM**
+    (`audio/l16; rate=24000; channels=1`), which browsers cannot play via
+    `<audio>`.
+  - Fix: `narrate_story` now returns the PCM bytes as-is and wraps them in a
+    standard **WAV container** (`_wrap_l16_in_wav`), so `audio/wav` is now
+    accurate and the browser playback works. PR review findings (double
+    base64-decode + MIME mismatch) were the prompt for this fix.
+- **Test coverage added in the fix:** asserts the real SDK contract (raw bytes,
+  not base64), the TTS model/voice config (Aussie accent via `Aoede` +
+  `response_modalities`), a `RIFF`-valid narrate route response, the 502
+  `narration_failed` path, and the frontend narrate body helper.
+- Rolled up in the follow-up that resolved the PR #2 review. ROADMAP.md Cycle 2
+  feature 3 updated accordingly.
 
 ## Out of scope (must NOT be present)
 

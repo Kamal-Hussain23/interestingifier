@@ -1,12 +1,13 @@
 """Gemini service helpers for the three-step pipeline.
 
-Cycle 2 fills in each helper with a real Gemini call. `transcribe_audio`
-("Capture the Boring") is done; `rewrite_story` and `narrate_story` are the next
-two milestones and still raise NotImplementedError. Business logic stays
-logging-free; the @logged decorator handles that.
+Cycle 2 filled in each helper with a real Gemini call: `transcribe_audio`
+("Capture the Boring"), `rewrite_story` ("The Vibrant Transformation"), and
+`narrate_story` ("Vocalizing the Absurd"). Business logic stays logging-free;
+the @logged decorator handles that.
 """
 
-import base64
+import io
+import wave
 
 from google import genai
 from google.genai import types
@@ -47,6 +48,40 @@ def build_client(api_key: str) -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
+def _audio_format_from_mime(mime_type: str) -> tuple[int, int]:
+    """Return (sample_rate, channels) parsed from a Gemini TTS mime type.
+
+    Gemini returns something like "audio/l16; rate=24000; channels=1". The
+    sample rate and channel count are needed to wrap the raw PCM in a WAV
+    container. Falls back to the model's usual values if the mime is missing
+    or unparseable.
+    """
+    rate = 24000
+    channels = 1
+    for piece in mime_type.split(";"):
+        key, _, value = piece.strip().partition("=")
+        if key == "rate":
+            rate = int(value)
+        elif key == "channels":
+            channels = int(value)
+    return rate, channels
+
+
+def _wrap_l16_in_wav(pcm: bytes, rate: int = 24000, channels: int = 1) -> bytes:
+    """Wrap raw 16-bit linear PCM into a playable WAV (RIFF) container.
+
+    Gemini TTS returns bare L16 PCM, which browsers cannot play directly, so
+    we add the standard WAV header before sending it to the frontend.
+    """
+    buffer = io.BytesIO()
+    with wave.open(buffer, "wb") as wav:
+        wav.setnchannels(channels)
+        wav.setsampwidth(2)
+        wav.setframerate(rate)
+        wav.writeframes(pcm)
+    return buffer.getvalue()
+
+
 @logged
 def transcribe_audio(audio: bytes, mime_type: str) -> str:
     """Turn recorded speech into text (Gemini Speech-to-Text)."""
@@ -78,7 +113,7 @@ def rewrite_story(transcript: str) -> str:
 
 @logged
 def narrate_story(story: str) -> bytes:
-    """Narrate a story aloud as audio (Gemini Text-to-Speech)."""
+    """Narrate a story aloud as audio, returned as a playable WAV (Gemini Text-to-Speech)."""
     client = build_client(config.get_gemini_api_key())
     response = client.models.generate_content(
         model=TTS_MODEL,
@@ -92,7 +127,8 @@ def narrate_story(story: str) -> bytes:
             ),
         ),
     )
-    # Extract audio bytes from response
+    # Extract the raw PCM bytes from the response and wrap them in a WAV header
+    # so the browser can play them. The SDK already decodes the payload to bytes.
     if (
         not response.candidates
         or not response.candidates[0].content
@@ -102,5 +138,6 @@ def narrate_story(story: str) -> bytes:
     part = response.candidates[0].content.parts[0]
     if part.inline_data is None or part.inline_data.data is None:
         raise RuntimeError("Gemini returned an empty TTS response (no inline data).")
-    audio_b64 = part.inline_data.data
-    return base64.b64decode(audio_b64)
+    mime_type = part.inline_data.mime_type or ""
+    rate, channels = _audio_format_from_mime(mime_type)
+    return _wrap_l16_in_wav(part.inline_data.data, rate, channels)

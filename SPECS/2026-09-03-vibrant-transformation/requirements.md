@@ -81,5 +81,5 @@ panel.
 
 ## Status
 
-Planned 2026-09-03 pending implementation. See `validation.md` for the
-spec-sync record once merged.
+Implemented and verified 2026-09-03; frontend rewrite-flow test added 2026-09-08
+as a follow-up. See `validation.md` for the spec-sync record.

@@ -1,9 +1,8 @@
 """Interestingifier Flask application.
 
-Serves the frontend and the three Gemini pipeline endpoints. The endpoints have
-real, structured request/response contracts. Transcription is implemented
-(Google genai Speech-to-Text); the rewrite and narrate Gemini calls are TODO
-stubs in services.py that later Cycle 2 milestones fill in (until then 501).
+Serves the frontend and the three Gemini pipeline endpoints. Every endpoint has
+a real, structured request/response contract and calls a real Gemini service
+transcribe → rewrite → narrate, persisting the transcript and story to SQLite.
 """
 
 import os
@@ -22,8 +21,8 @@ from models import ErrorResponse, StoryResponse, TranscriptResponse
 HOST = "0.0.0.0"
 PORT = 3000
 
-# Placeholder content type for narrated audio. Confirm (and possibly change)
-# this when the Gemini Text-to-Speech call lands in Cycle 2, milestone 3.
+# Content type for narrated audio. `narrate_story` wraps Gemini's raw L16 PCM
+# in a WAV container, so this stays correct.
 NARRATION_CONTENT_TYPE = "audio/wav"
 
 

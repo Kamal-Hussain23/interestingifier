@@ -48,8 +48,16 @@ the work against this file before the branch is considered done.
 
 ## Spec sync
 
-- On merge, update ROADMAP.md Cycle 2 feature 2 to record any approved
-  deviations from the original roadmap text.
+- **Implemented and verified 2026-09-03** — automated checks, pre-commit
+  gate, and live verification pass (live Gemini rewrite returned a real story
+  that persisted to SQLite linked to the most recent transcript, per the
+  documented design decision).
+- **Follow-up (2026-09-08):** the frontend rewrite-flow test required by this
+  validation file ("the new rewrite flow is tested") was missing. It was added
+  (`buildRewriteBody` helper in `frontend/static/app.js` +
+  `frontend/tests/rewrite-body.test.js`) as part of resolving the PR review
+  findings for feature 3.
+- ROADMAP.md Cycle 2 feature 2 updated to record status.
 
 ## Out of scope (must NOT be present)
 

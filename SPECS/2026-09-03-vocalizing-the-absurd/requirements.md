@@ -51,8 +51,12 @@ end-to-end pipeline works: record → transcribe → rewrite → persist → nar
   ["AUDIO"]` and `voice_config` for prebuilt voices. We'll use a clear
   Australian voice (e.g., "Aoede" with accent instructions) plus prompt
   guidance.
-- **Audio format:** The SDK returns base64-encoded audio data. We decode to
-  bytes and return. MIME type will be `audio/wav` (standard for TTS output).
+- **Audio format:** Live verification with the installed SDK showed the
+  `google-genai` SDK returns `inline_data.data` as **already-decoded bytes**
+  and the TTS model emits raw L16 PCM (`audio/l16; rate=24000; channels=1`),
+  not base64 and not a WAV. So `narrate_story` wraps the PCM in a standard WAV
+  container before returning it. MIME type is `audio/wav`. (Approved deviation
+  from the earlier base64/WAV assumption — see validation.md.)
 - **`google-genai` SDK.** Already added in feature 1. Reuse the existing
   `build_client` seam.
 - **No auto-fallback.** Keep milestone simple: on any Gemini failure, the
@@ -76,5 +80,5 @@ Aussie accent.
 
 ## Status
 
-Planned 2026-09-03 pending implementation. See `validation.md` for the
-spec-sync record once merged.
+Implemented and verified 2026-09-08. See `validation.md` for the spec-sync
+record, including the approved audio-format deviation.

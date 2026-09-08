@@ -71,7 +71,47 @@ def test_stories_table_links_to_transcripts(tmp_path: Path) -> None:
     columns = {row[1] for row in connection.execute("PRAGMA table_info(stories)")}
     connection.close()
 
-    assert {"id", "transcript_id", "story_text", "created_at"} <= columns
+    assert {"id", "transcript_id", "story_text", "created_at", "absurdity"} <= columns
+
+
+def test_init_db_upgrades_old_stories_schema(tmp_path: Path) -> None:
+    """init_db adds the absurdity column to an old-schema DB without data loss.
+
+    Existing rows get the 'unhinged' default, and the upgrade is idempotent.
+    """
+    db_file = tmp_path / "interestingifier.db"
+    connection = sqlite3.connect(db_file)
+    connection.executescript(
+        """
+        CREATE TABLE transcripts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            raw_text TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE stories (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            transcript_id INTEGER NOT NULL REFERENCES transcripts(id),
+            story_text TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+        CREATE TABLE metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO transcripts (raw_text) VALUES ('I missed the bus.');
+        INSERT INTO stories (transcript_id, story_text) VALUES (1, 'THE BUS FEARED HIM.');
+        """
+    )
+    connection.commit()
+    connection.close()
+
+    init_db(db_file)
+    init_db(db_file)
+
+    connection = get_connection(db_file)
+    columns = {row[1] for row in connection.execute("PRAGMA table_info(stories)")}
+    value = connection.execute("SELECT absurdity FROM stories WHERE id = 1").fetchone()["absurdity"]
+    connection.close()
+
+    assert "absurdity" in columns
+    assert value == "unhinged"
 
 
 def test_default_db_path_is_interestingifier_db() -> None:
@@ -140,6 +180,33 @@ def test_save_story_returns_stored_row(tmp_path: Path) -> None:
     assert story.story_text == "THE BUS FEARED HIM."
     assert story.id > 0
     assert story.created_at
+
+
+def test_save_story_persists_absurdity(tmp_path: Path) -> None:
+    """save_story stores the chosen absurdity and fetch/list return it."""
+    db_file = tmp_path / "interestingifier.db"
+    init_db(db_file)
+    transcript = save_transcript("I missed the bus.", db_path=db_file)
+
+    saved = save_story(
+        transcript.id, "THE BUS FEARED HIM.", absurdity="total_fever_dream", db_path=db_file
+    )
+
+    assert saved.absurdity == "total_fever_dream"
+    assert fetch_story(saved.id, db_path=db_file) == saved
+    assert list_stories(db_path=db_file) == [saved]
+
+
+def test_save_story_defaults_to_unhinged(tmp_path: Path) -> None:
+    """save_story without an absurdity stores 'unhinged'."""
+    db_file = tmp_path / "interestingifier.db"
+    init_db(db_file)
+    transcript = save_transcript("I missed the bus.", db_path=db_file)
+
+    saved = save_story(transcript.id, "THE BUS FEARED HIM.", db_path=db_file)
+
+    assert saved.absurdity == "unhinged"
+    assert fetch_story(saved.id, db_path=db_file) == saved
 
 
 def test_fetch_story_returns_saved_story(tmp_path: Path) -> None:

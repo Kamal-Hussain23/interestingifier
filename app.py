@@ -16,7 +16,7 @@ import db
 import services
 from db import DB_PATH, init_db
 from logging_config import logged, setup_logging
-from models import ErrorResponse, StoryResponse, TranscriptResponse
+from models import Absurdity, ErrorResponse, StoryResponse, TranscriptResponse
 
 HOST = "0.0.0.0"
 PORT = 3000
@@ -41,6 +41,18 @@ def error_response(code: str, message: str, status: HTTPStatus) -> Response:
     return response
 
 
+def parse_absurdity(data: dict[str, object]) -> Absurdity:
+    """Resolve the optional 'absurdity' field, defaulting to Unhinged.
+
+    Absent from the payload → the Unhinged default (today's behaviour).
+    Present but unknown → Absurdity.from_token raises ValueError the route
+    turns into a structured 400.
+    """
+    if "absurdity" not in data:
+        return Absurdity.UNHINGED
+    return Absurdity.from_token(str(data.get("absurdity", "")))
+
+
 @logged
 def transcribe() -> Response:
     audio_file = request.files.get("audio")
@@ -63,21 +75,21 @@ def transcribe() -> Response:
 @logged
 def rewrite() -> Response:
     data = request.get_json(silent=True)
-    if not isinstance(data, dict):
-        return error_response(
-            "missing_transcript",
-            "Send a JSON body with a 'transcript' field.",
-            HTTPStatus.BAD_REQUEST,
-        )
-    transcript = str(data.get("transcript", "")).strip()
+    transcript = str(data.get("transcript", "")).strip() if isinstance(data, dict) else ""
     if not transcript:
-        return error_response(
-            "missing_transcript",
-            "The 'transcript' field must be a non-empty string.",
-            HTTPStatus.BAD_REQUEST,
+        message = (
+            "Send a JSON body with a 'transcript' field."
+            if not isinstance(data, dict)
+            else "The 'transcript' field must be a non-empty string."
         )
+        return error_response("missing_transcript", message, HTTPStatus.BAD_REQUEST)
+    assert isinstance(data, dict)
     try:
-        story = services.rewrite_story(transcript)
+        absurdity = parse_absurdity(data)
+    except ValueError as exc:
+        return error_response("invalid_absurdity", str(exc), HTTPStatus.BAD_REQUEST)
+    try:
+        story = services.rewrite_story(transcript, absurdity=absurdity)
     except NotImplementedError as exc:
         return error_response("not_implemented", str(exc), HTTPStatus.NOT_IMPLEMENTED)
     except Exception as exc:
@@ -89,7 +101,12 @@ def rewrite() -> Response:
             "No transcript found to link story to.",
             HTTPStatus.BAD_REQUEST,
         )
-    db.save_story(transcript_id, story, db_path=current_app.config["DB_PATH"])
+    db.save_story(
+        transcript_id,
+        story,
+        absurdity=absurdity.value,
+        db_path=current_app.config["DB_PATH"],
+    )
     return jsonify(asdict(StoryResponse(story=story)))
 
 

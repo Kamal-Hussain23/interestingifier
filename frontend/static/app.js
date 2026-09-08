@@ -21,6 +21,11 @@ export const ACTIONS = {
   CLEAR: "clear",
 };
 
+// The three Absurdity levels, matching the backend /api/rewrite wire tokens.
+export const ABSURDITIES = ["slightly_weird", "unhinged", "total_fever_dream"];
+
+export const DEFAULT_ABSURDITY = "unhinged";
+
 // The only legal moves: idle --start--> recording --stop--> recorded --clear--> idle.
 const TRANSITIONS = {
   [RECORD_STATES.IDLE]: { [ACTIONS.START]: RECORD_STATES.RECORDING },
@@ -46,9 +51,21 @@ export function buildTranscribeForm(blob) {
 }
 
 // Builds the JSON request body for POST /api/rewrite. Pure and browser-free so
-// the node:test suite can check it.
-export function buildRewriteBody(transcript) {
-  return JSON.stringify({ transcript });
+// the node:test suite can check it. When an absurdity level is given it is
+// included; without one the body stays exactly as before (backward compatible).
+export function buildRewriteBody(transcript, absurdity) {
+  if (!ABSURDITIES.includes(absurdity)) {
+    return JSON.stringify({ transcript });
+  }
+  return JSON.stringify({ transcript, absurdity });
+}
+
+// Normalises a radio button's value into one of the three contract tokens,
+// falling back to the Unhinged default for missing or unknown values. The
+// single point where the UI guards against an invalid level before it reaches
+// the backend.
+export function curAbsurdity(checkedValue) {
+  return ABSURDITIES.includes(checkedValue) ? checkedValue : DEFAULT_ABSURDITY;
 }
 
 // Builds the JSON request body for POST /api/narrate. Pure and browser-free so
@@ -87,6 +104,14 @@ function main() {
   let stream = null;
   let mediaRecorder = null;
   let audioChunks = [];
+  // The latest transcript, remembered so flipping the Absurdity slider can
+  // re-rewrite the same anecdote at a new level without re-recording.
+  let currentTranscript = "";
+
+  function checkedAbsurdity() {
+    const checked = document.querySelector('input[name="absurdity"]:checked');
+    return curAbsurdity(checked ? checked.value : null);
+  }
 
   function updateUi() {
     recordBtn.classList.toggle("recording", state === RECORD_STATES.RECORDING);
@@ -155,6 +180,7 @@ function main() {
       }
       const data = await response.json();
       transcriptText.textContent = data.transcript;
+      currentTranscript = data.transcript;
       await rewriteStory(data.transcript);
     } catch (error) {
       transcriptText.textContent = `Transcription failed: ${error.message}`;
@@ -166,7 +192,7 @@ function main() {
       const response = await fetch("/api/rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: buildRewriteBody(transcript),
+        body: buildRewriteBody(transcript, checkedAbsurdity()),
       });
       if (!response.ok) {
         const error = await response.json().catch(() => null);
@@ -233,6 +259,17 @@ function main() {
     } else {
       reset();
     }
+  });
+
+  // Flipping the slider re-rewrites the last transcript at the new level
+  // (which re-narrates the fresh story too) — or does nothing if there is no
+  // transcript yet.
+  document.querySelectorAll('input[name="absurdity"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      if (currentTranscript) {
+        rewriteStory(currentTranscript);
+      }
+    });
   });
 }
 

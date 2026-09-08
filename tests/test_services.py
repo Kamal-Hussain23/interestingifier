@@ -9,6 +9,7 @@ import pytest
 
 import config
 import services
+from models import Absurdity
 
 TTS_SAMPLE_RATE = 24000
 TTS_CHANNELS = 1
@@ -103,6 +104,53 @@ def test_rewrite_story_returns_story(monkeypatch: pytest.MonkeyPatch) -> None:
     result = services.rewrite_story("I missed the bus.")
 
     assert result == "THE BUS FEARED HIM. IT TREMBLED BEFORE HIS GLORY."
+
+
+def _rewrite_prompt_used(monkeypatch: pytest.MonkeyPatch, level: Absurdity | None) -> str:
+    """Rewrite a transcript and return the first contents element sent to Gemini."""
+    fake_client = _monkeypatch_gemini(monkeypatch, "", "A STORY.", b"")
+    if level is None:
+        services.rewrite_story("I missed the bus.")
+    else:
+        services.rewrite_story("I missed the bus.", absurdity=level)
+    return str(fake_client.models.last_kwargs["contents"][0])
+
+
+def test_rewrite_story_defaults_to_unhinged_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Without a level, rewrite_story sends the Unhinged prompt (backward compatible)."""
+    prompt = _rewrite_prompt_used(monkeypatch, None)
+
+    assert prompt == services.REWRITE_PROMPTS[Absurdity.UNHINGED]
+
+
+def test_rewrite_story_sends_slightly_weird_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Slightly Weird level uses its own, gentler prompt."""
+    prompt = _rewrite_prompt_used(monkeypatch, Absurdity.SLIGHTLY_WEIRD)
+
+    assert prompt == services.REWRITE_PROMPTS[Absurdity.SLIGHTLY_WEIRD]
+
+
+def test_rewrite_story_sends_total_fever_dream_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Total Fever Dream level uses its own, wildest prompt."""
+    prompt = _rewrite_prompt_used(monkeypatch, Absurdity.TOTAL_FEVER_DREAM)
+
+    assert prompt == services.REWRITE_PROMPTS[Absurdity.TOTAL_FEVER_DREAM]
+
+
+def test_rewrite_prompts_for_each_level_are_distinct(monkeypatch: pytest.MonkeyPatch) -> None:
+    """The three prompts are genuinely different texts, keyed by Absurdity."""
+    prompts = {
+        _rewrite_prompt_used(monkeypatch, Absurdity.SLIGHTLY_WEIRD),
+        _rewrite_prompt_used(monkeypatch, Absurdity.UNHINGED),
+        _rewrite_prompt_used(monkeypatch, Absurdity.TOTAL_FEVER_DREAM),
+    }
+
+    assert prompts == {
+        services.REWRITE_PROMPTS[Absurdity.SLIGHTLY_WEIRD],
+        services.REWRITE_PROMPTS[Absurdity.UNHINGED],
+        services.REWRITE_PROMPTS[Absurdity.TOTAL_FEVER_DREAM],
+    }
+    assert len(prompts) == len(services.REWRITE_PROMPTS)
 
 
 def test_narrate_story_returns_playable_wav(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -162,8 +162,31 @@ function main() {
       }
       const data = await response.json();
       storyText.textContent = data.story;
+      await narrateStory(data.story);
     } catch (error) {
       storyText.textContent = `Story rewrite failed: ${error.message}`;
+    }
+  }
+
+  async function narrateStory(story) {
+    try {
+      const response = await fetch("/api/narrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ story }),
+      });
+      if (!response.ok) {
+        const error = await response.json().catch(() => null);
+        throw new Error(error?.error?.message ?? `Narration failed (${response.status})`);
+      }
+      const audioBlob = await response.blob();
+      if (previewAudio.src) {
+        URL.revokeObjectURL(previewAudio.src);
+      }
+      previewAudio.src = URL.createObjectURL(audioBlob);
+      playbackPanel.hidden = false;
+    } catch (error) {
+      console.error("Narration error:", error);
     }
   }
 

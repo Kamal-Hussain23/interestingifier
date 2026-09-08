@@ -24,7 +24,7 @@ PORT = 3000
 
 # Placeholder content type for narrated audio. Confirm (and possibly change)
 # this when the Gemini Text-to-Speech call lands in Cycle 2, milestone 3.
-NARRATION_CONTENT_TYPE = "audio/webm"
+NARRATION_CONTENT_TYPE = "audio/wav"
 
 
 def public_url(port: int = PORT) -> str:
@@ -114,6 +114,8 @@ def narrate() -> Response:
         audio = services.narrate_story(story)
     except NotImplementedError as exc:
         return error_response("not_implemented", str(exc), HTTPStatus.NOT_IMPLEMENTED)
+    except Exception as exc:
+        return error_response("narration_failed", str(exc), HTTPStatus.BAD_GATEWAY)
     return Response(audio, mimetype=NARRATION_CONTENT_TYPE)
 
 

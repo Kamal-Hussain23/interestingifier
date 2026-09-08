@@ -178,12 +178,17 @@ def test_narrate_rejects_blank_story(tmp_path: Path) -> None:
     assert error_code(response) == "missing_story"
 
 
-def test_narrate_stub_returns_501(tmp_path: Path) -> None:
-    """POST /api/narrate with a valid story hits the not-implemented stub."""
+def test_narrate_success_returns_audio(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """POST /api/narrate with a valid story returns audio bytes."""
     app = create_app(db_path=tmp_path / "test.db")
     client = app.test_client()
+    monkeypatch.setattr(
+        "app.services.narrate_story",
+        lambda story: b"fake-audio-bytes",
+    )
 
     response = client.post("/api/narrate", json={"story": "THE BUS FEARED HIM."})
 
-    assert response.status_code == HTTPStatus.NOT_IMPLEMENTED
-    assert error_code(response) == NOT_IMPLEMENTED_CODE
+    assert response.status_code == HTTPStatus.OK
+    assert response.content_type == "audio/wav"
+    assert response.data == b"fake-audio-bytes"

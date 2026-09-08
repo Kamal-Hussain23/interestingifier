@@ -54,11 +54,16 @@ export function buildTranscribeForm(blob) {
 // Builds the JSON request body for POST /api/rewrite. Pure and browser-free so
 // the node:test suite can check it. When an absurdity level is given it is
 // included; without one the body stays exactly as before (backward compatible).
-export function buildRewriteBody(transcript, absurdity) {
-  if (!ABSURDITIES.includes(absurdity)) {
-    return JSON.stringify({ transcript });
+// A truthy drama flag adds the "More Drama!" re-roll marker.
+export function buildRewriteBody(transcript, absurdity, drama = false) {
+  const body = { transcript };
+  if (ABSURDITIES.includes(absurdity)) {
+    body.absurdity = absurdity;
   }
-  return JSON.stringify({ transcript, absurdity });
+  if (drama) {
+    body.drama = true;
+  }
+  return JSON.stringify(body);
 }
 
 // Normalises a radio button's value into one of the three contract tokens,
@@ -100,6 +105,7 @@ function main() {
   const previewAudio = document.getElementById("preview-audio");
   const transcriptText = document.getElementById("transcript-text");
   const storyText = document.getElementById("story-text");
+  const moreDramaBtn = document.getElementById("more-drama-btn");
 
   let state = RECORD_STATES.IDLE;
   let stream = null;
@@ -190,18 +196,19 @@ function main() {
       const data = await response.json();
       transcriptText.textContent = data.transcript;
       currentTranscript = data.transcript;
+      moreDramaBtn.disabled = false;
       await rewriteStory(data.transcript);
     } catch (error) {
       transcriptText.textContent = `Transcription failed: ${error.message}`;
     }
   }
 
-  async function rewriteStory(transcript) {
+  async function rewriteStory(transcript, drama = false) {
     try {
       const response = await fetch("/api/rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: buildRewriteBody(transcript, checkedAbsurdity()),
+        body: buildRewriteBody(transcript, checkedAbsurdity(), drama),
       });
       if (!response.ok) {
         const error = await response.json().catch(() => null);
@@ -280,6 +287,14 @@ function main() {
         rewriteStory(currentTranscript);
       }
     });
+  });
+
+  // "More Drama!" re-rolls the last transcript into a fresh, differently-spun
+  // story — no re-recording needed. Disabled until a transcript exists.
+  moreDramaBtn.addEventListener("click", () => {
+    if (currentTranscript) {
+      rewriteStory(currentTranscript, true);
+    }
   });
 
   syncAbsurdityHighlight();

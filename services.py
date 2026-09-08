@@ -7,7 +7,9 @@ the @logged decorator handles that.
 """
 
 import io
+import random
 import wave
+from collections.abc import Callable
 
 from google import genai
 from google.genai import types
@@ -41,6 +43,26 @@ REWRITE_PROMPTS = {
 }
 
 TTS_MODEL = "gemini-3.1-flash-tts-preview"
+
+# Dramatic-angle instructions for a "More Drama!" re-roll: each click picks a
+# random twist so consecutive spins on the same anecdote genuinely differ.
+DRAMA_TWISTS: list[str] = [
+    "Retell it as a locked-room courtroom drama, in the kitsch style of a soap opera.",
+    "Make it feel like a high-octane action-movie trailer.",
+    "Tell it as a villain's last confession, full of dramatic irony.",
+    "Frame it as a nature documentary's most tense predator-and-prey moment.",
+    "Narrate it as a ghost story that turns out not to be so spooky after all.",
+    "Reimagine it as a chaotic heist that somehow still succeeds.",
+]
+
+
+def pick_drama_twist(pick: Callable[[list[str]], str] = random.choice) -> str:
+    """Return one random dramatic twist from DRAMA_TWISTS.
+
+    The random source is injectable so tests can assert a deterministic choice.
+    """
+    return pick(DRAMA_TWISTS)
+
 
 TTS_PROMPT = (
     "Narrate the following story in a funny, energetic Aussie accent. "
@@ -116,12 +138,25 @@ def transcribe_audio(audio: bytes, mime_type: str) -> str:
 
 
 @logged
-def rewrite_story(transcript: str, absurdity: Absurdity = Absurdity.UNHINGED) -> str:
-    """Rewrite a boring transcript as a story, at the chosen absurdity level."""
+def rewrite_story(
+    transcript: str,
+    absurdity: Absurdity = Absurdity.UNHINGED,
+    twist: str | None = None,
+) -> str:
+    """Rewrite a boring transcript as a story, at the chosen absurdity level.
+
+    When a dramatic twist is given, it is injected between the level prompt and
+    the transcript so a "More Drama!" re-roll reads as a fresh angle. Without a
+    twist the request is exactly [prompt, transcript] — unchanged behaviour.
+    """
     client = build_client(config.get_gemini_api_key())
+    contents: list[str] = [REWRITE_PROMPTS[absurdity]]
+    if twist:
+        contents.append(twist)
+    contents.append(transcript)
     response = client.models.generate_content(
         model=REWRITE_MODEL,
-        contents=[REWRITE_PROMPTS[absurdity], transcript],
+        contents=contents,
     )
     if response.text is None:
         raise RuntimeError("Gemini returned an empty story response.")

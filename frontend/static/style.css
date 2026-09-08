@@ -209,6 +209,34 @@ body {
   box-shadow: var(--glow-gold);
 }
 
+/* The "More Drama!" re-roll button inside the story panel. */
+.more-drama-btn {
+  display: inline-block;
+  margin-top: 1rem;
+  font-family: var(--font-kitsch);
+  font-size: 1.05rem;
+  font-weight: bold;
+  color: var(--cream);
+  background: linear-gradient(160deg, var(--neon-pink), var(--plum));
+  border: 3px solid var(--neon-blue);
+  border-radius: 999px;
+  padding: 0.5rem 1.4rem;
+  cursor: pointer;
+  box-shadow: var(--glow-pink);
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.more-drama-btn:hover:not(:disabled) {
+  transform: scale(1.05);
+  box-shadow: var(--glow-pink), 0 0 6px var(--neon-blue);
+}
+
+.more-drama-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 /* ---------- Panels ------------------------------------------------------- */
 
 .playback-panel,

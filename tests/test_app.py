@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 from werkzeug.test import TestResponse
 
-from app import create_app
+from app import create_app, parse_drama_flag
 from db import get_connection, save_transcript
 from models import Absurdity
 
@@ -139,7 +139,7 @@ def test_rewrite_success_returns_story(tmp_path: Path, monkeypatch: pytest.Monke
     save_transcript("I missed the bus.", db_path=db_file)
     monkeypatch.setattr(
         "app.services.rewrite_story",
-        lambda transcript, absurdity=None: "THE BUS FEARED HIM.",
+        lambda transcript, absurdity=None, twist=None: "THE BUS FEARED HIM.",
     )
 
     response = client.post("/api/rewrite", json={"transcript": "I missed the bus."})
@@ -156,7 +156,7 @@ def test_rewrite_persists_story(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
     save_transcript("I burnt the toast.", db_path=db_file)
     monkeypatch.setattr(
         "app.services.rewrite_story",
-        lambda transcript, absurdity=None: "THE TOAST WAS INNOCENT.",
+        lambda transcript, absurdity=None, twist=None: "THE TOAST WAS INNOCENT.",
     )
 
     client.post("/api/rewrite", json={"transcript": "I burnt the toast."})
@@ -177,7 +177,9 @@ def test_rewrite_accepts_absurdity_level(tmp_path: Path, monkeypatch: pytest.Mon
     save_transcript("I missed the bus.", db_path=db_file)
     captured: dict[str, object] = {}
 
-    def fake_rewrite(transcript: str, absurdity: Absurdity | None = None) -> str:
+    def fake_rewrite(
+        transcript: str, absurdity: Absurdity | None = None, twist: str | None = None
+    ) -> str:
         captured["transcript"] = transcript
         captured["absurdity"] = absurdity
         return "THE BUS FEARED HIM."
@@ -206,7 +208,9 @@ def test_rewrite_defaults_to_unhinged(tmp_path: Path, monkeypatch: pytest.Monkey
     save_transcript("I burnt the toast.", db_path=db_file)
     captured: dict[str, object] = {}
 
-    def fake_rewrite(transcript: str, absurdity: Absurdity | None = None) -> str:
+    def fake_rewrite(
+        transcript: str, absurdity: Absurdity | None = None, twist: str | None = None
+    ) -> str:
         captured["absurdity"] = absurdity
         return "THE TOAST WAS INNOCENT."
 
@@ -230,6 +234,101 @@ def test_rewrite_rejects_unknown_absurdity(tmp_path: Path) -> None:
     assert response.status_code == HTTPStatus.BAD_REQUEST
     assert error_code(response) == "invalid_absurdity"
     assert "slightly_weird" in response.get_json()["error"]["message"]
+
+
+def test_parse_drama_flag_is_lenient() -> None:
+    """parse_drama_flag is True only for explicit truthy drama values."""
+    assert parse_drama_flag({}) is False
+    assert parse_drama_flag({"drama": True}) is True
+    assert parse_drama_flag({"drama": "true"}) is True
+    assert parse_drama_flag({"drama": "TRUE"}) is True
+    assert parse_drama_flag({"drama": False}) is False
+    assert parse_drama_flag({"drama": "nonsense"}) is False
+
+
+def test_rewrite_with_drama_flag_threads_a_twist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """POST /api/rewrite with drama true picks a twist and sends it to the service."""
+    db_file = tmp_path / "test.db"
+    app = create_app(db_path=db_file)
+    client = app.test_client()
+    save_transcript("I missed the bus.", db_path=db_file)
+    captured: dict[str, object] = {}
+
+    def fake_rewrite(
+        transcript: str, absurdity: Absurdity | None = None, twist: str | None = None
+    ) -> str:
+        captured["twist"] = twist
+        return "THE BUS FEARED HIM."
+
+    monkeypatch.setattr("app.services.pick_drama_twist", lambda: "A heist twist.")
+    monkeypatch.setattr("app.services.rewrite_story", fake_rewrite)
+
+    response = client.post(
+        "/api/rewrite",
+        json={"transcript": "I missed the bus.", "drama": True},
+    )
+
+    assert response.status_code == HTTPStatus.OK
+    assert captured["twist"] == "A heist twist."
+    connection = get_connection(db_file)
+    rows = connection.execute("SELECT story_text FROM stories").fetchall()
+    connection.close()
+    assert len(rows) == 1
+
+
+def test_rewrite_without_drama_flag_uses_no_twist(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Without the drama flag, rewrite_story receives twist=None."""
+    db_file = tmp_path / "test.db"
+    app = create_app(db_path=db_file)
+    client = app.test_client()
+    save_transcript("I burnt the toast.", db_path=db_file)
+    captured: dict[str, object] = {}
+
+    def fake_rewrite(
+        transcript: str, absurdity: Absurdity | None = None, twist: str | None = None
+    ) -> str:
+        captured["twist"] = twist
+        return "THE TOAST WAS INNOCENT."
+
+    monkeypatch.setattr("app.services.rewrite_story", fake_rewrite)
+
+    client.post("/api/rewrite", json={"transcript": "I burnt the toast."})
+
+    assert captured["twist"] is None
+
+
+def test_rewrite_drama_rolls_save_new_story_rows(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Each More Drama! re-roll saves a brand-new story row on the same transcript."""
+    db_file = tmp_path / "test.db"
+    app = create_app(db_path=db_file)
+    client = app.test_client()
+    save_transcript("I missed the bus.", db_path=db_file)
+    turns = iter(["STORY ONE.", "STORY TWO."])
+
+    def fake_rewrite(
+        transcript: str, absurdity: Absurdity | None = None, twist: str | None = None
+    ) -> str:
+        return next(turns)
+
+    monkeypatch.setattr("app.services.pick_drama_twist", lambda: "A twist.")
+    monkeypatch.setattr("app.services.rewrite_story", fake_rewrite)
+
+    client.post("/api/rewrite", json={"transcript": "I missed the bus.", "drama": True})
+    client.post("/api/rewrite", json={"transcript": "I missed the bus.", "drama": True})
+
+    connection = get_connection(db_file)
+    rows = connection.execute(
+        "SELECT id, story_text, transcript_id FROM stories ORDER BY id"
+    ).fetchall()
+    connection.close()
+    assert [row["story_text"] for row in rows] == ["STORY ONE.", "STORY TWO."]
+    assert len({row["transcript_id"] for row in rows}) == 1
 
 
 def test_narrate_rejects_missing_story(tmp_path: Path) -> None:
@@ -292,7 +391,9 @@ def test_rewrite_no_transcript_returns_400(tmp_path: Path, monkeypatch: pytest.M
     db_file = tmp_path / "test.db"
     app = create_app(db_path=db_file)
     client = app.test_client()
-    monkeypatch.setattr("app.services.rewrite_story", lambda transcript, absurdity=None: "A STORY.")
+    monkeypatch.setattr(
+        "app.services.rewrite_story", lambda transcript, absurdity=None, twist=None: "A STORY."
+    )
 
     response = client.post("/api/rewrite", json={"transcript": "I missed the bus."})
 

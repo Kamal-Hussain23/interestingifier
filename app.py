@@ -53,6 +53,16 @@ def parse_absurdity(data: dict[str, object]) -> Absurdity:
     return Absurdity.from_token(str(data.get("absurdity", "")))
 
 
+def parse_drama_flag(data: dict[str, object]) -> bool:
+    """Resolve the optional 'drama' field for a More Drama! re-roll.
+
+    Lenient, like parse_absurdity: only an explicitly truthy value (True or the
+    string "true") enables the twist; absent, False, or junk mean a plain
+    rewrite.
+    """
+    return str(data.get("drama", "")).lower() == "true"
+
+
 @logged
 def transcribe() -> Response:
     audio_file = request.files.get("audio")
@@ -88,8 +98,9 @@ def rewrite() -> Response:
         absurdity = parse_absurdity(data)
     except ValueError as exc:
         return error_response("invalid_absurdity", str(exc), HTTPStatus.BAD_REQUEST)
+    twist = services.pick_drama_twist() if parse_drama_flag(data) else None
     try:
-        story = services.rewrite_story(transcript, absurdity=absurdity)
+        story = services.rewrite_story(transcript, absurdity=absurdity, twist=twist)
     except NotImplementedError as exc:
         return error_response("not_implemented", str(exc), HTTPStatus.NOT_IMPLEMENTED)
     except Exception as exc:

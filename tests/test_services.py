@@ -6,6 +6,7 @@ import wave
 from typing import Any
 
 import pytest
+from google.genai import types
 
 import config
 import services
@@ -15,31 +16,62 @@ TTS_CHANNELS = 1
 TTS_SAMPLE_WIDTH = 2
 
 
-class _FakeResponse:
-    def __init__(self, text: str | None = None, audio_bytes: bytes | None = None) -> None:
+TTS_MIME = "audio/l16; rate=24000; channels=1"
+
+
+class _Transcription:
+    """Minimum stand-in for the SDK's AudioTranscription payload."""
+
+    def __init__(self, text: str | None) -> None:
         self.text = text
-        self._audio_bytes = audio_bytes
 
-    @property
-    def candidates(self) -> list[Any]:
-        if self._audio_bytes:
-            audio = self._audio_bytes
 
-            class _InlineData:
-                data: bytes = audio
-                mime_type: str = "audio/l16; rate=24000; channels=1"
+class _InlineData:
+    def __init__(self, data: bytes, mime_type: str) -> None:
+        self.data = data
+        self.mime_type = mime_type
 
-            class _Part:
-                inline_data = _InlineData()
 
-            class _Content:
-                parts: list[Any] = [_Part()]
+class _Part:
+    def __init__(
+        self,
+        text: str | None = None,
+        audio_transcription: _Transcription | None = None,
+        inline_data: _InlineData | None = None,
+    ) -> None:
+        self.text = text
+        self.audio_transcription = audio_transcription
+        self.inline_data = inline_data
 
-            class _Candidate:
-                content: Any = _Content()
 
-            return [_Candidate()]
-        return []
+class _Content:
+    def __init__(self, parts: list[_Part]) -> None:
+        self.parts = parts
+
+
+class _Candidate:
+    def __init__(self, content: _Content) -> None:
+        self.content = content
+
+
+class _FakeResponse:
+    def __init__(
+        self,
+        text: str | None = None,
+        audio_transcription: str | None = None,
+        audio_bytes: bytes | None = None,
+    ) -> None:
+        self.text = text
+        self.parts: list[_Part] = []
+        self.candidates: list[_Candidate] = []
+        if audio_bytes is not None:
+            part = _Part(inline_data=_InlineData(audio_bytes, TTS_MIME))
+        elif audio_transcription is not None:
+            part = _Part(audio_transcription=_Transcription(audio_transcription))
+        else:
+            part = _Part(text=text)
+        self.parts = [part]
+        self.candidates = [_Candidate(_Content([part]))]
 
 
 class _FakeModels:
@@ -63,7 +95,7 @@ class _FakeModels:
         # Check model for transcription vs rewrite
         model = kwargs.get("model", "")
         if "transcribe" in str(model).lower():
-            return _FakeResponse(text=self._transcript)
+            return _FakeResponse(audio_transcription=self._transcript)
         # Default to rewrite
         return _FakeResponse(text=self._story)
 
@@ -94,6 +126,28 @@ def test_transcribe_audio_returns_transcript(monkeypatch: pytest.MonkeyPatch) ->
     result = services.transcribe_audio(b"audio-bytes", "audio/webm")
 
     assert result == "I missed the bus."
+
+
+def test_transcribe_audio_sends_transcription_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    """transcribe_audio drives the transcribe model with AudioTranscriptionConfig."""
+    fake_client = _monkeypatch_gemini(monkeypatch, "I missed the bus.", "", b"")
+    audio = b"audio-bytes"
+
+    services.transcribe_audio(audio, "audio/webm")
+
+    kwargs = fake_client.models.last_kwargs
+    assert kwargs["model"] == services.TRANSCRIPTION_MODEL == "gemini-3.5-transcribe"
+    assert kwargs["contents"] == [types.Part.from_bytes(data=audio, mime_type="audio/webm")]
+    config = kwargs["config"]
+    assert config.audio_transcription_config == types.AudioTranscriptionConfig()
+
+
+def test_transcribe_audio_raises_on_empty(monkeypatch: pytest.MonkeyPatch) -> None:
+    """transcribe_audio raises when Gemini returns no transcript text."""
+    _monkeypatch_gemini(monkeypatch, "", "", b"")
+
+    with pytest.raises(RuntimeError, match="empty transcription"):
+        services.transcribe_audio(b"audio-bytes", "audio/webm")
 
 
 def test_rewrite_story_returns_story(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -18,14 +18,20 @@ export const RECORD_STATES = {
 export const ACTIONS = {
   START: "start",
   STOP: "stop",
-  CLEAR: "clear",
 };
 
-// The only legal moves: idle --start--> recording --stop--> recorded --clear--> idle.
+// The three Absurdity levels, matching the backend /api/rewrite wire tokens.
+export const ABSURDITIES = ["slightly_weird", "unhinged", "total_fever_dream"];
+
+export const DEFAULT_ABSURDITY = "unhinged";
+
+// The only legal moves: idle --start--> recording --stop--> recorded, and
+// recorded --start--> recording so "Record again" starts a fresh take at once
+// (the old clip is simply replaced).
 const TRANSITIONS = {
   [RECORD_STATES.IDLE]: { [ACTIONS.START]: RECORD_STATES.RECORDING },
   [RECORD_STATES.RECORDING]: { [ACTIONS.STOP]: RECORD_STATES.RECORDED },
-  [RECORD_STATES.RECORDED]: { [ACTIONS.CLEAR]: RECORD_STATES.IDLE },
+  [RECORD_STATES.RECORDED]: { [ACTIONS.START]: RECORD_STATES.RECORDING },
 };
 
 const STATUS_TEXT = {
@@ -46,9 +52,21 @@ export function buildTranscribeForm(blob) {
 }
 
 // Builds the JSON request body for POST /api/rewrite. Pure and browser-free so
-// the node:test suite can check it.
-export function buildRewriteBody(transcript) {
-  return JSON.stringify({ transcript });
+// the node:test suite can check it. When an absurdity level is given it is
+// included; without one the body stays exactly as before (backward compatible).
+export function buildRewriteBody(transcript, absurdity) {
+  if (!ABSURDITIES.includes(absurdity)) {
+    return JSON.stringify({ transcript });
+  }
+  return JSON.stringify({ transcript, absurdity });
+}
+
+// Normalises a radio button's value into one of the three contract tokens,
+// falling back to the Unhinged default for missing or unknown values. The
+// single point where the UI guards against an invalid level before it reaches
+// the backend.
+export function curAbsurdity(checkedValue) {
+  return ABSURDITIES.includes(checkedValue) ? checkedValue : DEFAULT_ABSURDITY;
 }
 
 // Builds the JSON request body for POST /api/narrate. Pure and browser-free so
@@ -87,6 +105,15 @@ function main() {
   let stream = null;
   let mediaRecorder = null;
   let audioChunks = [];
+  let starting = false;
+  // The latest transcript, remembered so flipping the Absurdity slider can
+  // re-rewrite the same anecdote at a new level without re-recording.
+  let currentTranscript = "";
+
+  function checkedAbsurdity() {
+    const checked = document.querySelector('input[name="absurdity"]:checked');
+    return curAbsurdity(checked ? checked.value : null);
+  }
 
   function updateUi() {
     recordBtn.classList.toggle("recording", state === RECORD_STATES.RECORDING);
@@ -110,10 +137,15 @@ function main() {
   }
 
   async function startRecording() {
+    // Guard against a double-click while the mic request is still in flight.
+    if (starting || state === RECORD_STATES.RECORDING) {
+      return;
+    }
     if (!canRecord()) {
       statusLine.textContent = "Sorry — this browser can't record audio.";
       return;
     }
+    starting = true;
     try {
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       audioChunks = [];
@@ -128,6 +160,8 @@ function main() {
       state = nextState(state, ACTIONS.START);
     } catch {
       statusLine.textContent = "Microphone unavailable — please allow mic access.";
+    } finally {
+      starting = false;
     }
     updateUi();
   }
@@ -155,6 +189,7 @@ function main() {
       }
       const data = await response.json();
       transcriptText.textContent = data.transcript;
+      currentTranscript = data.transcript;
       await rewriteStory(data.transcript);
     } catch (error) {
       transcriptText.textContent = `Transcription failed: ${error.message}`;
@@ -166,7 +201,7 @@ function main() {
       const response = await fetch("/api/rewrite", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: buildRewriteBody(transcript),
+        body: buildRewriteBody(transcript, checkedAbsurdity()),
       });
       if (!response.ok) {
         const error = await response.json().catch(() => null);
@@ -216,24 +251,38 @@ function main() {
     updateUi();
   }
 
-  function reset() {
-    state = nextState(state, ACTIONS.CLEAR);
-    if (previewAudio.src) {
-      URL.revokeObjectURL(previewAudio.src);
-    }
-    previewAudio.removeAttribute("src");
-    updateUi();
-  }
-
   recordBtn.addEventListener("click", () => {
-    if (state === RECORD_STATES.IDLE) {
-      startRecording();
-    } else if (state === RECORD_STATES.RECORDING) {
+    if (state === RECORD_STATES.RECORDING) {
       stopRecording();
     } else {
-      reset();
+      // idle, or recorded — start a fresh take (recorded covers "Record again").
+      startRecording();
     }
   });
+
+  // A small helper that highlights whichever Absurdity option is checked.
+  // Browser-agnostic (no :has()): the labels get an .is-selected class driven
+  // from JS, so the slider reads correctly even on older Codio browsers.
+  function syncAbsurdityHighlight() {
+    document.querySelectorAll(".absurdity-slider__option").forEach((option) => {
+      const checked = option.querySelector('input[name="absurdity"]:checked');
+      option.classList.toggle("is-selected", Boolean(checked));
+    });
+  }
+
+  // Flipping the slider re-rewrites the last transcript at the new level
+  // (which re-narrates the fresh story too) — or does nothing if there is no
+  // transcript yet.
+  document.querySelectorAll('input[name="absurdity"]').forEach((input) => {
+    input.addEventListener("change", () => {
+      syncAbsurdityHighlight();
+      if (currentTranscript) {
+        rewriteStory(currentTranscript);
+      }
+    });
+  });
+
+  syncAbsurdityHighlight();
 }
 
 // Only wire up the DOM when a browser is available; Node (the test runner)

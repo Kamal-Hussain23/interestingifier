@@ -14,17 +14,31 @@ from google.genai import types
 
 import config
 from logging_config import logged
+from models import Absurdity
 
 TRANSCRIPTION_MODEL = "gemini-3.5-transcribe"
 
 REWRITE_MODEL = "gemini-3.1-flash-lite"
 
-REWRITE_PROMPT = (
-    "Rewrite the user's boring anecdote as an over-the-top, hilarious, "
-    "theatrical story. Amplify every detail to absurd proportions. "
-    "Use dramatic flair, vivid imagery, and comedic exaggeration. "
-    "Return only the rewritten story with no commentary."
-)
+REWRITE_PROMPTS = {
+    Absurdity.SLIGHTLY_WEIRD: (
+        "Rewrite the user's boring anecdote as a funny story that adds a touch "
+        "of playful exaggeration. Keep it grounded and believable — just a "
+        "little bit weird. Return only the rewritten story with no commentary."
+    ),
+    Absurdity.UNHINGED: (
+        "Rewrite the user's boring anecdote as an over-the-top, hilarious, "
+        "theatrical story. Amplify every detail to absurd proportions. "
+        "Use dramatic flair, vivid imagery, and comedic exaggeration. "
+        "Return only the rewritten story with no commentary."
+    ),
+    Absurdity.TOTAL_FEVER_DREAM: (
+        "Rewrite the user's boring anecdote as an unhinged fever dream. "
+        "Abandon all logic: the world descends into glorious, cosmic chaos. "
+        "Every detail twists into surreal, hallucinatory absurdity. "
+        "Return only the rewritten story with no commentary."
+    ),
+}
 
 TTS_MODEL = "gemini-3.1-flash-tts-preview"
 
@@ -102,12 +116,12 @@ def transcribe_audio(audio: bytes, mime_type: str) -> str:
 
 
 @logged
-def rewrite_story(transcript: str) -> str:
-    """Rewrite a boring transcript as an over-the-top story (Gemini generative text)."""
+def rewrite_story(transcript: str, absurdity: Absurdity = Absurdity.UNHINGED) -> str:
+    """Rewrite a boring transcript as a story, at the chosen absurdity level."""
     client = build_client(config.get_gemini_api_key())
     response = client.models.generate_content(
         model=REWRITE_MODEL,
-        contents=[REWRITE_PROMPT, transcript],
+        contents=[REWRITE_PROMPTS[absurdity], transcript],
     )
     if response.text is None:
         raise RuntimeError("Gemini returned an empty story response.")

@@ -159,6 +159,56 @@ body {
   text-shadow: 1px 1px 0 var(--ink);
 }
 
+/* The three-way Absurdity slider — a segmented kitsch classic. */
+.absurdity-slider {
+  max-width: 34rem;
+  margin: 1rem auto 0;
+  padding: 0.8rem 1rem;
+  border: 3px solid var(--cream);
+  border-radius: 24px;
+  background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
+  box-shadow: 0 0 10px rgba(0, 229, 255, 0.7), 0 0 24px rgba(0, 229, 255, 0.4);
+}
+
+.absurdity-slider__legend {
+  padding: 0 0.5rem;
+  color: var(--ink);
+  font-weight: bold;
+  text-shadow: 1px 1px 0 var(--gold);
+}
+
+.absurdity-slider__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0.25rem 0.3rem;
+  padding: 0.4rem 0.8rem;
+  font-size: 0.95rem;
+  font-weight: bold;
+  color: var(--ink);
+  background: var(--cream);
+  border: 2px solid var(--plum);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+
+.absurdity-slider__option:hover {
+  transform: scale(1.05);
+}
+
+.absurdity-slider__option input[type="radio"] {
+  accent-color: var(--neon-pink);
+}
+
+/* The checked option — highlighted from JS via .is-selected (no :has()
+   dependency) so the control reads correctly on older browser engines. */
+.absurdity-slider__option.is-selected {
+  background: linear-gradient(160deg, var(--gold), var(--sunset-orange));
+  color: var(--ink);
+  box-shadow: var(--glow-gold);
+}
+
 /* ---------- Panels ------------------------------------------------------- */
 
 .playback-panel,

@@ -51,6 +51,44 @@ the work against this file before the branch is considered done.
   and record any approved deviations and implementation notes here (as the
   previous features did).
 
+## Implementation record (2026-09-08)
+
+Implemented on branch `feature/2026-09-08-visual-engine` (PR #11) via the TDD
+groups in plan.md, Red-first for the pure generator:
+
+- **G1 pure generator** — `frontend/tests/confetti.test.js` (written and observed
+  red) before `CONFETTI_PALETTE` (brand neon hexes plus the stylesheet's
+  `--sunset-orange`) and injectable `makeConfettiPieces(count, pick =
+  Math.random)` in `app.js`. Each descriptor carries unit-formatted `left`,
+  `delay`, `duration`, `size`, `spin`, `drift`, and a palette `color` inside the
+  contract ranges.
+- **G2 DOM wiring** — module-level `celebrateStory()` (guarded by
+  `typeof document`, no-ops if `#story-panel` or `main.stage` is missing):
+  tears down any running burst (remove old `.confetti-layer`, clear shared
+  timer), builds a `.confetti-layer` of 60 `.confetti-piece` spans styled via
+  inline `--left/--delay/--duration/--size/--spin/--drift/--color`, adds
+  `panel--celebrating`, then tears down on the last piece's `animationend` plus
+  a `setTimeout(CONFETTI_WINDOW_MS)` belt-and-braces. Single hook in
+  `rewriteStory()` right after `storyText.textContent = data.story;`.
+- **G3 CSS** — `.confetti-layer` (fixed, `inset: 0`, `pointer-events: none`),
+  `.confetti-piece` keyed to the custom properties, `@keyframes confetti-fall` 
+  (fall + sway via `--drift` + spin), `@keyframes rainbow-border` cycling the
+  neon palette with the existing `--glow-*` shadows. No
+  `prefers-reduced-motion` guard per the user decision.
+- **G4 gate + live** — `npm test` (23), `npm run lint`, `ruff check`,
+  `ruff format --check`, `mypy`, `pytest` (79), and
+  `pre-commit run --all-files` all green.
+
+Live verification through the Codio public URL: `/`, `/static/app.js`,
+`/static/style.css`, and `/api/health` all 200; the served `app.js` carries
+`makeConfettiPieces`/`celebrateStory` and `style.css` the new keyframes; a live
+`POST /api/rewrite` returned a fresh story (the single path that fires the
+celebration in the browser). The visual burst itself is browser-only
+(no headless-DOM runner), matching repo precedent.
+
+Notes/deviations: none material. `CONFETTI_PALETTE` reuses the exact brand
+hexes incl. `--sunset-orange` (`#ff6d00`).
+
 ## Out of scope (must NOT be present)
 
 - No Clickbait Title Generator or "More Drama!" re-roll button.

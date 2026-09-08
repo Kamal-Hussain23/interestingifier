@@ -316,6 +316,64 @@ audio {
   color: var(--plum);
 }
 
+/* ---------- Confetti / Visual Engine ------------------------------------- */
+
+.confetti-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.confetti-piece {
+  position: absolute;
+  top: 0;
+  left: var(--left);
+  width: var(--size);
+  height: var(--size);
+  background: var(--color);
+  animation: confetti-fall var(--duration) ease-in var(--delay) forwards;
+}
+
+@keyframes confetti-fall {
+  0% {
+    transform: translateY(-5vh) translateX(0) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(110vh) translateX(var(--drift)) rotate(var(--spin));
+    opacity: 1;
+  }
+}
+
+.panel--celebrating {
+  animation: rainbow-border 1.2s linear infinite;
+}
+
+@keyframes rainbow-border {
+  0% {
+    border-color: var(--neon-pink);
+    box-shadow: var(--glow-pink);
+  }
+  25% {
+    border-color: var(--gold);
+    box-shadow: var(--glow-gold);
+  }
+  50% {
+    border-color: var(--neon-green);
+    box-shadow: var(--glow-green);
+  }
+  75% {
+    border-color: var(--neon-blue);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.7), 0 0 24px rgba(0, 229, 255, 0.4);
+  }
+  100% {
+    border-color: var(--neon-pink);
+    box-shadow: var(--glow-pink);
+  }
+}
+
 /* ---------- Footer ------------------------------------------------------- */
 
 .site-footer {

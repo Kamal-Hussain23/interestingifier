@@ -80,6 +80,39 @@ export function formatHeadline(headline) {
   return headline ? String(headline) : "";
 }
 
+// Kitsch confetti palette — the same neon hexes the stylesheet already uses,
+// so the burst matches the brand. Exported so tests can pin every piece.
+export const CONFETTI_PALETTE = [
+  "#ff2ea6",
+  "#39ff14",
+  "#00e5ff",
+  "#ffd700",
+  "#ff6d00",
+];
+
+export const CONFETTI_COUNT = 60;
+export const CONFETTI_WINDOW_MS = 2500;
+
+// Pure descriptor generator for one confetti burst. The random source is
+// injectable so tests can assert exact, deterministic ranges without a browser.
+// Each piece carries values formatted for CSS custom properties, plus a drift
+// for the horizontal sway in the keyframes.
+export function makeConfettiPieces(count, pick = Math.random) {
+  const pieces = [];
+  for (let i = 0; i < count; i += 1) {
+    pieces.push({
+      left: `${Math.floor(pick() * 101)}%`,
+      delay: `${(pick() * 0.4).toFixed(2)}s`,
+      duration: `${(1.2 + pick() * 1.3).toFixed(2)}s`,
+      size: `${Math.floor(6 + pick() * 8)}px`,
+      spin: `${Math.floor(pick() * 840 - 420)}deg`,
+      drift: `${(pick() * 40 - 20).toFixed(1)}%`,
+      color: CONFETTI_PALETTE[Math.floor(pick() * CONFETTI_PALETTE.length)],
+    });
+  }
+  return pieces;
+}
+
 // Builds the JSON request body for POST /api/narrate. Pure and browser-free so
 // the node:test suite can check it.
 export function buildNarrateBody(story) {
@@ -102,6 +135,64 @@ export function statusText(state) {
 // ---------------------------------------------------------------------------
 // Browser-only DOM wiring (skipped when imported under Node for tests)
 // ---------------------------------------------------------------------------
+
+// Timestamp handle for the celebration's teardown, shared by every burst so a
+// new celebration can cancel the old timer before starting fresh.
+let confettiTeardownTimer = null;
+
+// Fires one confetti burst across the stage and flashes the story panel's
+// border for the celebration window. Idempotent by design: any running
+// celebration is torn down first, so rapid re-rewrites never stack layers or
+// leave the rainbow border stuck.
+function celebrateStory() {
+  if (typeof document === "undefined") {
+    return;
+  }
+  const storyPanel = document.getElementById("story-panel");
+  const stage = document.querySelector("main.stage");
+  if (!storyPanel || !stage) {
+    return;
+  }
+
+  const oldLayer = document.querySelector(".confetti-layer");
+  if (oldLayer) {
+    oldLayer.remove();
+  }
+  if (confettiTeardownTimer !== null) {
+    clearTimeout(confettiTeardownTimer);
+    confettiTeardownTimer = null;
+  }
+  storyPanel.classList.remove("panel--celebrating");
+
+  const layer = document.createElement("div");
+  layer.className = "confetti-layer";
+
+  function teardown() {
+    layer.remove();
+    storyPanel.classList.remove("panel--celebrating");
+    if (confettiTeardownTimer !== null) {
+      clearTimeout(confettiTeardownTimer);
+      confettiTeardownTimer = null;
+    }
+  }
+
+  for (const piece of makeConfettiPieces(CONFETTI_COUNT)) {
+    const span = document.createElement("span");
+    span.className = "confetti-piece";
+    span.style.setProperty("--left", piece.left);
+    span.style.setProperty("--delay", piece.delay);
+    span.style.setProperty("--duration", piece.duration);
+    span.style.setProperty("--size", piece.size);
+    span.style.setProperty("--spin", piece.spin);
+    span.style.setProperty("--drift", piece.drift);
+    span.style.setProperty("--color", piece.color);
+    layer.appendChild(span);
+  }
+  stage.appendChild(layer);
+  storyPanel.classList.add("panel--celebrating");
+  layer.lastChild.addEventListener("animationend", teardown, { once: true });
+  confettiTeardownTimer = setTimeout(teardown, CONFETTI_WINDOW_MS);
+}
 
 function main() {
   const recordBtn = document.getElementById("record-btn");
@@ -225,6 +316,7 @@ function main() {
       storyHeadline.hidden = !data.headline;
       storyHeadline.textContent = formatHeadline(data.headline);
       storyText.textContent = data.story;
+      celebrateStory();
       await narrateStory(data.story);
     } catch (error) {
       storyHeadline.hidden = true;

@@ -83,7 +83,7 @@ If the core pipeline is complete and verified, students may add extra kitsch for
 
 - An **Absurdity Slider** (`Slightly Weird`, `Unhinged`, `Total Fever Dream`) that changes the story prompt. **Status: ✅ Done (2026-09-08) — spec: `SPECS/2026-09-08-absurdity-slider`.**
 - A **Visual Engine** that fires confetti and rainbow borders whenever a story generates.
-- A **Clickbait Title Generator** that saves a sensationalist headline with each story.
+- A **Clickbait Title Generator** that saves a sensationalist headline with each story. **Spec: `SPECS/2026-09-08-clickbait-title-generator`.**
 - A **"More Drama!"** re-roll button that creates an alternate spin on the same anecdote without re-recording.
 
 ---

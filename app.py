@@ -63,6 +63,42 @@ def parse_drama_flag(data: dict[str, object]) -> bool:
     return str(data.get("drama", "")).lower() == "true"
 
 
+def story_result(
+    transcript: str, absurdity: Absurdity, twist: str | None
+) -> tuple[str, Response | None]:
+    """Rewrite the transcript, mapping service failures to their responses.
+
+    Mirrors generate_headline_result: returns (story, None) on success and
+    (story, error) holding the error response otherwise. NotImplementedError is
+    the "feature is a stub" signal (501); any other failure is a 502 gateway
+    error while the story itself worked fine.
+    """
+    try:
+        return (
+            services.rewrite_story(transcript, absurdity=absurdity, twist=twist),
+            None,
+        )
+    except NotImplementedError as exc:
+        return "", error_response("not_implemented", str(exc), HTTPStatus.NOT_IMPLEMENTED)
+    except Exception as exc:
+        return "", error_response("rewrite_failed", str(exc), HTTPStatus.BAD_GATEWAY)
+
+
+def generate_headline_result(story: str) -> tuple[str, Response | None]:
+    """Clickbait headline for a story, never aborting the rewrite.
+
+    The headline is extra flavour: a headline failure must not lose the story,
+    so anything short of a stub degrades to an empty headline. Only a
+    NotImplementedError (the feature is a stub) surfaces as its 501 response.
+    """
+    try:
+        return services.generate_headline(story), None
+    except NotImplementedError as exc:
+        return "", error_response("not_implemented", str(exc), HTTPStatus.NOT_IMPLEMENTED)
+    except Exception:
+        return "", None
+
+
 @logged
 def transcribe() -> Response:
     audio_file = request.files.get("audio")
@@ -99,12 +135,12 @@ def rewrite() -> Response:
     except ValueError as exc:
         return error_response("invalid_absurdity", str(exc), HTTPStatus.BAD_REQUEST)
     twist = services.pick_drama_twist() if parse_drama_flag(data) else None
-    try:
-        story = services.rewrite_story(transcript, absurdity=absurdity, twist=twist)
-    except NotImplementedError as exc:
-        return error_response("not_implemented", str(exc), HTTPStatus.NOT_IMPLEMENTED)
-    except Exception as exc:
-        return error_response("rewrite_failed", str(exc), HTTPStatus.BAD_GATEWAY)
+    story, story_error = story_result(transcript, absurdity, twist)
+    if story_error is not None:
+        return story_error
+    headline, headline_error = generate_headline_result(story)
+    if headline_error is not None:
+        return headline_error
     transcript_id = db.fetch_latest_transcript_id(db_path=current_app.config["DB_PATH"])
     if transcript_id is None:
         return error_response(
@@ -116,9 +152,10 @@ def rewrite() -> Response:
         transcript_id,
         story,
         absurdity=absurdity.value,
+        headline=headline,
         db_path=current_app.config["DB_PATH"],
     )
-    return jsonify(asdict(StoryResponse(story=story)))
+    return jsonify(asdict(StoryResponse(story=story, headline=headline)))
 
 
 @logged

@@ -16,7 +16,10 @@ def test_transcript_response_serialises() -> None:
 
 def test_story_response_serialises() -> None:
     """StoryResponse serialises to the /api/rewrite success shape."""
-    assert asdict(StoryResponse(story="THE BUS FEARED HIM.")) == {"story": "THE BUS FEARED HIM."}
+    assert asdict(StoryResponse(story="THE BUS FEARED HIM.")) == {
+        "story": "THE BUS FEARED HIM.",
+        "headline": "",
+    }
 
 
 def test_error_response_serialises() -> None:
@@ -54,7 +57,50 @@ def test_story_row_serialises() -> None:
         "story_text": "THE BUS FEARED HIM.",
         "created_at": "2026-08-14 10:00:00",
         "absurdity": "total_fever_dream",
+        "headline": "",
     }
+
+
+def test_story_response_includes_headline() -> None:
+    """StoryResponse includes a headline, defaulting to '' for backward compat."""
+    full = StoryResponse(story="THE BUS FEARED HIM.", headline="BUSES TREMBLE!")
+    assert asdict(full) == {
+        "story": "THE BUS FEARED HIM.",
+        "headline": "BUSES TREMBLE!",
+    }
+    default = StoryResponse(story="THE BUS FEARED HIM.")
+    assert asdict(default) == {
+        "story": "THE BUS FEARED HIM.",
+        "headline": "",
+    }
+
+
+def test_story_row_includes_headline() -> None:
+    """Story includes a headline, defaulting to ''."""
+    with_headline = Story(
+        id=1,
+        transcript_id=2,
+        story_text="THE BUS.",
+        created_at="2026-08-14 10:00:00",
+        absurdity="unhinged",
+        headline="BUSES TREMBLE!",
+    )
+    assert asdict(with_headline) == {
+        "id": 1,
+        "transcript_id": 2,
+        "story_text": "THE BUS.",
+        "created_at": "2026-08-14 10:00:00",
+        "absurdity": "unhinged",
+        "headline": "BUSES TREMBLE!",
+    }
+    default = Story(
+        id=1,
+        transcript_id=2,
+        story_text="THE BUS.",
+        created_at="2026-08-14 10:00:00",
+        absurdity="unhinged",
+    )
+    assert asdict(default)["headline"] == ""
 
 
 def test_absurdity_tokens_are_exact() -> None:

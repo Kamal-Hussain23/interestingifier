@@ -72,6 +72,7 @@ def test_stories_table_links_to_transcripts(tmp_path: Path) -> None:
     connection.close()
 
     assert {"id", "transcript_id", "story_text", "created_at", "absurdity"} <= columns
+    assert "headline" in columns
 
 
 def test_init_db_upgrades_old_stories_schema(tmp_path: Path) -> None:
@@ -108,10 +109,15 @@ def test_init_db_upgrades_old_stories_schema(tmp_path: Path) -> None:
     connection = get_connection(db_file)
     columns = {row[1] for row in connection.execute("PRAGMA table_info(stories)")}
     value = connection.execute("SELECT absurdity FROM stories WHERE id = 1").fetchone()["absurdity"]
+    headline_value = connection.execute("SELECT headline FROM stories WHERE id = 1").fetchone()[
+        "headline"
+    ]
     connection.close()
 
     assert "absurdity" in columns
     assert value == "unhinged"
+    assert "headline" in columns
+    assert headline_value == ""
 
 
 def test_default_db_path_is_interestingifier_db() -> None:
@@ -206,6 +212,33 @@ def test_save_story_defaults_to_unhinged(tmp_path: Path) -> None:
     saved = save_story(transcript.id, "THE BUS FEARED HIM.", db_path=db_file)
 
     assert saved.absurdity == "unhinged"
+    assert fetch_story(saved.id, db_path=db_file) == saved
+
+
+def test_save_story_persists_headline(tmp_path: Path) -> None:
+    """save_story stores a headline and fetch/list return it."""
+    db_file = tmp_path / "interestingifier.db"
+    init_db(db_file)
+    transcript = save_transcript("I missed the bus.", db_path=db_file)
+
+    saved = save_story(
+        transcript.id, "THE BUS FEARED HIM.", headline="BUSES TREMBLE!", db_path=db_file
+    )
+
+    assert saved.headline == "BUSES TREMBLE!"
+    assert fetch_story(saved.id, db_path=db_file) == saved
+    assert list_stories(db_path=db_file) == [saved]
+
+
+def test_save_story_defaults_headline_to_empty(tmp_path: Path) -> None:
+    """save_story without a headline stores an empty one."""
+    db_file = tmp_path / "interestingifier.db"
+    init_db(db_file)
+    transcript = save_transcript("I missed the bus.", db_path=db_file)
+
+    saved = save_story(transcript.id, "THE BUS FEARED HIM.", db_path=db_file)
+
+    assert saved.headline == ""
     assert fetch_story(saved.id, db_path=db_file) == saved
 
 

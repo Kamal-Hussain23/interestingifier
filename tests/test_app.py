@@ -141,11 +141,61 @@ def test_rewrite_success_returns_story(tmp_path: Path, monkeypatch: pytest.Monke
         "app.services.rewrite_story",
         lambda transcript, absurdity=None, twist=None: "THE BUS FEARED HIM.",
     )
+    monkeypatch.setattr("app.services.generate_headline", lambda story: "BUSES TREMBLE!")
 
     response = client.post("/api/rewrite", json={"transcript": "I missed the bus."})
 
     assert response.status_code == HTTPStatus.OK
-    assert response.get_json() == {"story": "THE BUS FEARED HIM."}
+    assert response.get_json() == {
+        "story": "THE BUS FEARED HIM.",
+        "headline": "BUSES TREMBLE!",
+    }
+
+
+def test_rewrite_degrades_headline_when_generic_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A headline failure (non-NotImplementedError) leaves an empty headline, not an error."""
+    db_file = tmp_path / "test.db"
+    app = create_app(db_path=db_file)
+    client = app.test_client()
+    save_transcript("I missed the bus.", db_path=db_file)
+    monkeypatch.setattr(
+        "app.services.rewrite_story",
+        lambda transcript, absurdity=None, twist=None: "THE BUS FEARED HIM.",
+    )
+    monkeypatch.setattr(
+        "app.services.generate_headline",
+        lambda story: (_ for _ in ()).throw(RuntimeError("boom")),
+    )
+
+    response = client.post("/api/rewrite", json={"transcript": "I missed the bus."})
+
+    assert response.status_code == HTTPStatus.OK
+    assert response.get_json() == {"story": "THE BUS FEARED HIM.", "headline": ""}
+
+
+def test_rewrite_headline_not_implemented_is_501(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A headline NotImplementedError maps to 501 like the other service calls."""
+    db_file = tmp_path / "test.db"
+    app = create_app(db_path=db_file)
+    client = app.test_client()
+    save_transcript("I missed the bus.", db_path=db_file)
+    monkeypatch.setattr(
+        "app.services.rewrite_story",
+        lambda transcript, absurdity=None, twist=None: "THE BUS FEARED HIM.",
+    )
+    monkeypatch.setattr(
+        "app.services.generate_headline",
+        lambda story: (_ for _ in ()).throw(NotImplementedError("write me")),
+    )
+
+    response = client.post("/api/rewrite", json={"transcript": "I missed the bus."})
+
+    assert response.status_code == HTTPStatus.NOT_IMPLEMENTED
+    assert error_code(response) == NOT_IMPLEMENTED_CODE
 
 
 def test_rewrite_persists_story(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -158,15 +208,17 @@ def test_rewrite_persists_story(tmp_path: Path, monkeypatch: pytest.MonkeyPatch)
         "app.services.rewrite_story",
         lambda transcript, absurdity=None, twist=None: "THE TOAST WAS INNOCENT.",
     )
+    monkeypatch.setattr("app.services.generate_headline", lambda story: "TOAST ALIBI SHOCK!")
 
     client.post("/api/rewrite", json={"transcript": "I burnt the toast."})
 
     connection = get_connection(db_file)
-    rows = connection.execute("SELECT story_text FROM stories").fetchall()
+    rows = connection.execute("SELECT story_text, headline FROM stories").fetchall()
     connection.close()
 
     assert len(rows) == 1
     assert rows[0]["story_text"] == "THE TOAST WAS INNOCENT."
+    assert rows[0]["headline"] == "TOAST ALIBI SHOCK!"
 
 
 def test_rewrite_accepts_absurdity_level(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

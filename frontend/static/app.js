@@ -74,6 +74,12 @@ export function curAbsurdity(checkedValue) {
   return ABSURDITIES.includes(checkedValue) ? checkedValue : DEFAULT_ABSURDITY;
 }
 
+// The backend may skip a headline when the title model misbehaves, so the
+// page guards against undefined/empty values before rendering them as text.
+export function formatHeadline(headline) {
+  return headline ? String(headline) : "";
+}
+
 // Builds the JSON request body for POST /api/narrate. Pure and browser-free so
 // the node:test suite can check it.
 export function buildNarrateBody(story) {
@@ -105,6 +111,7 @@ function main() {
   const previewAudio = document.getElementById("preview-audio");
   const transcriptText = document.getElementById("transcript-text");
   const storyText = document.getElementById("story-text");
+  const storyHeadline = document.getElementById("story-headline");
   const moreDramaBtn = document.getElementById("more-drama-btn");
 
   let state = RECORD_STATES.IDLE;
@@ -215,9 +222,13 @@ function main() {
         throw new Error(error?.error?.message ?? `Rewrite failed (${response.status})`);
       }
       const data = await response.json();
+      storyHeadline.hidden = !data.headline;
+      storyHeadline.textContent = formatHeadline(data.headline);
       storyText.textContent = data.story;
       await narrateStory(data.story);
     } catch (error) {
+      storyHeadline.hidden = true;
+      storyHeadline.textContent = "";
       storyText.textContent = `Story rewrite failed: ${error.message}`;
     }
   }
